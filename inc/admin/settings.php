@@ -14,6 +14,11 @@
  * - Connection Key is legacy; if present we use it, otherwise we use License Key as the auth key. // CHANGED:
  *
  * ========= CHANGE LOG =========
+ * 2025-12-28: CLEAN: Remove duplicate submit_button() guard that was repeated inside render_page().             // CHANGED:
+ * 2025-12-28: UX: Disable "Check License" + "Test Connection" until a License Key is saved.                   // CHANGED:
+ * 2025-12-28: UX: Disable "Deactivate This Site" when status is known "Not active" (still allowed if Unknown). // CHANGED:
+ * 2025-12-28: LOG: Add tight PPA: logs for license actions + connectivity for faster debug.log triage.         // CHANGED:
+ *
  * 2025-12-28: FIX: Prevent duplicate plan-limit notice by suppressing querystring license notice
  *              when site_limit_reached is true (persistent notice handles it).                    // CHANGED:
  * 2025-12-28: UX: If last license response shows plan_limit + site_limit_reached, show friendly message
@@ -46,30 +51,30 @@ defined( 'ABSPATH' ) || exit;
  // CHANGED: This can happen if Settings renders early in admin bootstrap or on admin-post requests.
 
 if ( is_admin() && ! function_exists( 'submit_button' ) ) { // CHANGED:
-    $ppa_tpl = ABSPATH . 'wp-admin/includes/template.php'; // CHANGED:
-    if ( file_exists( $ppa_tpl ) ) { // CHANGED:
-        require_once $ppa_tpl; // CHANGED:
-    } // CHANGED:
+	$ppa_tpl = ABSPATH . 'wp-admin/includes/template.php'; // CHANGED:
+	if ( file_exists( $ppa_tpl ) ) { // CHANGED:
+		require_once $ppa_tpl; // CHANGED:
+	} // CHANGED:
 } // CHANGED:
 
 // CHANGED: Last-resort shim — only if submit_button STILL doesn't exist after template include.
 if ( ! function_exists( 'submit_button' ) ) { // CHANGED:
-    function submit_button( $text = null, $type = 'primary', $name = 'submit', $wrap = true, $other_attributes = null ) { // CHANGED:
-        $text = $text ?: __( 'Save Changes' ); // CHANGED:
-        $classes = 'button button-' . $type; // CHANGED:
-        $attrs = ''; // CHANGED:
+	function submit_button( $text = null, $type = 'primary', $name = 'submit', $wrap = true, $other_attributes = null ) { // CHANGED:
+		$text    = $text ?: __( 'Save Changes' ); // CHANGED:
+		$classes = 'button button-' . $type; // CHANGED:
+		$attrs   = ''; // CHANGED:
 
-        if ( is_array( $other_attributes ) ) { // CHANGED:
-            foreach ( $other_attributes as $k => $v ) { // CHANGED:
-                $attrs .= ' ' . esc_attr( $k ) . '="' . esc_attr( $v ) . '"'; // CHANGED:
-            } // CHANGED:
-        } elseif ( is_string( $other_attributes ) && trim( $other_attributes ) !== '' ) { // CHANGED:
-            $attrs .= ' ' . trim( $other_attributes ); // CHANGED:
-        } // CHANGED:
+		if ( is_array( $other_attributes ) ) { // CHANGED:
+			foreach ( $other_attributes as $k => $v ) { // CHANGED:
+				$attrs .= ' ' . esc_attr( $k ) . '="' . esc_attr( $v ) . '"'; // CHANGED:
+			} // CHANGED:
+		} elseif ( is_string( $other_attributes ) && trim( $other_attributes ) !== '' ) { // CHANGED:
+			$attrs .= ' ' . trim( $other_attributes ); // CHANGED:
+		} // CHANGED:
 
-        $btn = '<input type="submit" name="' . esc_attr( $name ) . '" id="' . esc_attr( $name ) . '" class="' . esc_attr( $classes ) . '" value="' . esc_attr( $text ) . '"' . $attrs . ' />'; // CHANGED:
-        echo $wrap ? '<p class="submit">' . $btn . '</p>' : $btn; // CHANGED:
-    } // CHANGED:
+		$btn = '<input type="submit" name="' . esc_attr( $name ) . '" id="' . esc_attr( $name ) . '" class="' . esc_attr( $classes ) . '" value="' . esc_attr( $text ) . '"' . $attrs . ' />'; // CHANGED:
+		echo $wrap ? '<p class="submit">' . $btn . '</p>' : $btn; // CHANGED:
+	} // CHANGED:
 } // CHANGED:
 /* PPA_SUBMIT_BUTTON_GUARD_END */
 
@@ -97,6 +102,20 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 		private static function cap() {
 			return 'manage_options';
 		}
+
+		/**
+		 * Tight logger for debug.log triage.
+		 * Always prefixed with "PPA:" so you can grep cleanly.                                     // CHANGED:
+		 *
+		 * @param string $msg
+		 */
+		private static function log( $msg ) {                                                   // CHANGED:
+			$msg = is_string( $msg ) ? trim( $msg ) : '';                                       // CHANGED:
+			if ( '' === $msg ) {                                                                // CHANGED:
+				return;                                                                        // CHANGED:
+			}                                                                                   // CHANGED:
+			error_log( 'PPA: ' . $msg );                                                        // CHANGED:
+		}                                                                                       // CHANGED:
 
 		/**
 		 * Bootstrap hooks.
@@ -480,14 +499,18 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 
 			check_admin_referer( 'ppa-test-connectivity' );
 
+			self::log( 'test_connectivity start' );                                               // CHANGED:
+
 			$base = self::get_django_base_url();
 			$key  = self::resolve_shared_key();
 
 			if ( '' === $base ) {
+				self::log( 'test_connectivity fail: missing base url' );                         // CHANGED:
 				self::redirect_with_test_result( 'error', __( 'Missing server configuration. Please contact support.', 'postpress-ai' ) );
 			}
 
 			if ( '' === $key ) {
+				self::log( 'test_connectivity fail: missing key' );                               // CHANGED:
 				self::redirect_with_test_result( 'error', __( 'Please add your License Key first, then click Save.', 'postpress-ai' ) );
 			}
 
@@ -517,6 +540,7 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 				);
 
 				if ( is_wp_error( $response ) ) {
+					self::log( 'test_connectivity ' . $label . ' wp_error: ' . $response->get_error_message() ); // CHANGED:
 					$messages[] = sprintf(
 						__( '%1$s failed: %2$s', 'postpress-ai' ),
 						ucfirst( $label ),
@@ -526,6 +550,7 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 				}
 
 				$code = (int) wp_remote_retrieve_response_code( $response );
+				self::log( 'test_connectivity ' . $label . ' http=' . $code );                   // CHANGED:
 				if ( $code >= 200 && $code < 300 ) {
 					$ok_count++;
 				} else {
@@ -538,6 +563,7 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 			}
 
 			if ( 2 === $ok_count ) {
+				self::log( 'test_connectivity ok' );                                              // CHANGED:
 				self::redirect_with_test_result(
 					'ok',
 					__( 'Connected! This site can reach PostPress AI.', 'postpress-ai' )
@@ -549,6 +575,7 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 				$msg .= ' ' . implode( ' ', $messages );
 			}
 
+			self::log( 'test_connectivity error: ' . $msg );                                      // CHANGED:
 			self::redirect_with_test_result( 'error', $msg );
 		}
 
@@ -576,19 +603,24 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 
 			check_admin_referer( 'ppa-license-' . $action );
 
+			self::log( 'license_action start: ' . $action );                                      // CHANGED:
+
 			$base = self::get_django_base_url();
 			$key  = self::resolve_shared_key();
 			$lic  = self::get_license_key();
 
 			if ( '' === $base ) {
+				self::log( 'license_action fail: missing base url' );                            // CHANGED:
 				self::redirect_with_license_result( 'error', __( 'Missing server configuration. Please contact support.', 'postpress-ai' ), array() );
 			}
 
 			if ( '' === $lic ) {
+				self::log( 'license_action fail: missing license key' );                         // CHANGED:
 				self::redirect_with_license_result( 'error', __( 'Please paste your License Key first, then click Save.', 'postpress-ai' ), array() );
 			}
 
 			if ( '' === $key ) {
+				self::log( 'license_action fail: missing auth key' );                            // CHANGED:
 				self::redirect_with_license_result( 'error', __( 'Please paste your License Key first, then click Save.', 'postpress-ai' ), array() );
 			}
 
@@ -619,6 +651,11 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 
 			$result = self::normalize_django_response( $response );
 			self::cache_last_license_result( $result );
+
+			// CHANGED: log the normalized result outcome without dumping secrets.
+			$http = ( is_array( $result ) && isset( $result['_http_status'] ) ) ? (int) $result['_http_status'] : 0; // CHANGED:
+			$ok   = ( is_array( $result ) && isset( $result['ok'] ) && true === $result['ok'] ) ? 'true' : 'false';  // CHANGED:
+			self::log( 'license_action result: action=' . $action . ' ok=' . $ok . ' http=' . $http );              // CHANGED:
 
 			if ( is_array( $result ) && isset( $result['ok'] ) && true === $result['ok'] ) {
 				if ( 'activate' === $action ) {
@@ -757,32 +794,6 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 				wp_die( esc_html__( 'You are not allowed to access this page.', 'postpress-ai' ) );
 			}
 
-			// CHANGED: submit_button() lives in wp-admin/includes/template.php. Load it defensively to avoid fatal.
-			$ppa_tpl = ABSPATH . 'wp-admin/includes/template.php'; // CHANGED:
-			if ( ! function_exists( 'submit_button' ) && file_exists( $ppa_tpl ) ) { // CHANGED:
-				require_once $ppa_tpl; // CHANGED:
-			} // CHANGED:
-
-			// CHANGED: Last-resort shim (only if template.php STILL didn't provide submit_button()).
-			if ( ! function_exists( 'submit_button' ) ) { // CHANGED:
-				function submit_button( $text = null, $type = 'primary', $name = 'submit', $wrap = true, $other_attributes = null ) { // CHANGED:
-					$text    = $text ?: __( 'Save Changes' ); // CHANGED:
-					$classes = 'button button-' . $type; // CHANGED:
-					$attrs   = ''; // CHANGED:
-
-					if ( is_array( $other_attributes ) ) { // CHANGED:
-						foreach ( $other_attributes as $k => $v ) { // CHANGED:
-							$attrs .= ' ' . esc_attr( $k ) . '="' . esc_attr( $v ) . '"'; // CHANGED:
-						} // CHANGED:
-					} elseif ( is_string( $other_attributes ) && trim( $other_attributes ) !== '' ) { // CHANGED:
-						$attrs .= ' ' . trim( $other_attributes ); // CHANGED:
-					} // CHANGED:
-
-					$btn = '<input type="submit" name="' . esc_attr( $name ) . '" id="' . esc_attr( $name ) . '" class="' . esc_attr( $classes ) . '" value="' . esc_attr( $text ) . '"' . $attrs . ' />'; // CHANGED:
-					echo $wrap ? '<p class="submit">' . $btn . '</p>' : $btn; // CHANGED:
-				} // CHANGED:
-			} // CHANGED:
-
 			$test_status = isset( $_GET['ppa_test'] ) ? sanitize_key( wp_unslash( $_GET['ppa_test'] ) ) : '';
 			$test_msg    = isset( $_GET['ppa_test_msg'] ) ? wp_unslash( $_GET['ppa_test_msg'] ) : '';
 			if ( is_string( $test_msg ) && '' !== $test_msg ) {
@@ -883,7 +894,14 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ppa-action-form">
 							<?php wp_nonce_field( 'ppa-license-verify' ); ?>
 							<input type="hidden" name="action" value="ppa_license_verify" />
-							<?php submit_button( __( 'Check License', 'postpress-ai' ), 'secondary', 'ppa_license_verify_btn', false ); ?>
+							<?php
+							$disable_verify = ( ! $has_key );                                          // CHANGED:
+							$attrs_verify   = $disable_verify ? array( 'disabled' => 'disabled' ) : array(); // CHANGED:
+							submit_button( __( 'Check License', 'postpress-ai' ), 'secondary', 'ppa_license_verify_btn', false, $attrs_verify ); // CHANGED:
+							?>
+							<?php if ( $disable_verify ) : ?>
+								<p class="description ppa-inline-help"><?php esc_html_e( 'Save your license key first.', 'postpress-ai' ); ?></p>
+							<?php endif; ?>
 						</form>
 
 						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ppa-action-form">
@@ -906,7 +924,18 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ppa-action-form">
 							<?php wp_nonce_field( 'ppa-license-deactivate' ); ?>
 							<input type="hidden" name="action" value="ppa_license_deactivate" />
-							<?php submit_button( __( 'Deactivate This Site', 'postpress-ai' ), 'delete', 'ppa_license_deactivate_btn', false ); ?>
+							<?php
+							// CHANGED: Deactivate is disabled ONLY when we *know* it's not active.
+							// If status is Unknown, keep enabled so user can still attempt a clean deactivation.
+							$disable_deactivate = ( ! $has_key ) || $is_inactive_here;                    // CHANGED:
+							$attrs_deactivate   = $disable_deactivate ? array( 'disabled' => 'disabled' ) : array(); // CHANGED:
+							submit_button( __( 'Deactivate This Site', 'postpress-ai' ), 'delete', 'ppa_license_deactivate_btn', false, $attrs_deactivate ); // CHANGED:
+							?>
+							<?php if ( ! $has_key ) : ?>
+								<p class="description ppa-inline-help"><?php esc_html_e( 'Save your license key first.', 'postpress-ai' ); ?></p>
+							<?php elseif ( $is_inactive_here ) : ?>
+								<p class="description ppa-inline-help"><?php esc_html_e( 'This site is not active right now.', 'postpress-ai' ); ?></p>
+							<?php endif; ?>
 						</form>
 					</div>
 
@@ -926,7 +955,14 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 						<?php wp_nonce_field( 'ppa-test-connectivity' ); ?>
 						<input type="hidden" name="action" value="ppa_test_connectivity" />
-						<?php submit_button( __( 'Test Connection', 'postpress-ai' ), 'secondary', 'ppa_test_connectivity_btn', false ); ?>
+						<?php
+						$disable_test = ( ! $has_key );                                                // CHANGED:
+						$attrs_test   = $disable_test ? array( 'disabled' => 'disabled' ) : array();  // CHANGED:
+						submit_button( __( 'Test Connection', 'postpress-ai' ), 'secondary', 'ppa_test_connectivity_btn', false, $attrs_test ); // CHANGED:
+						?>
+						<?php if ( $disable_test ) : ?>
+							<p class="description ppa-inline-help"><?php esc_html_e( 'Save your license key first.', 'postpress-ai' ); ?></p>
+						<?php endif; ?>
 					</form>
 				</div>
 			</div>
