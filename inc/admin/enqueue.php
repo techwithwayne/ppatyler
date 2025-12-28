@@ -3,6 +3,8 @@
  * PostPress AI — Admin Enqueue
  *
  * ========= CHANGE LOG =========
+ * 2025-12-28 • HARDEN: Settings screen JS isolation is now “airtight” by arming a late admin_print_scripts purge.      # CHANGED:
+ *              This guarantees Settings is truly CSS-only (no PostPress AI JS can sneak in).                           # CHANGED:
  * 2025-12-28 • HARDEN: Settings screen CSS isolation is now “airtight” by arming a late admin_print_styles purge.
  *              This guarantees Settings prints ONLY admin-settings.css even if another callback enqueues admin.css later. # CHANGED:
  * 2025-12-28 • CLEAN: Do not enqueue window.PPA / ppa-admin-config on Settings screen (CSS-only page).              # CHANGED:
@@ -151,7 +153,7 @@ if (!function_exists('ppa_admin_enqueue')) {
         }
         $page_param = isset($_GET['page']) ? sanitize_key((string) $_GET['page']) : '';
 
-        // Screen IDs (WP uses: toplevel_page_{slug} and {parent}_page_{submenu_slug})
+        // Screen IDs (WP uses: testbed asset URLs
         $slug_main_ui  = 'toplevel_page_postpress-ai';                      // Composer (top-level)
         $slug_settings = 'postpress-ai_page_postpress-ai-settings';         // Settings submenu              # CHANGED:
         $slug_testbed  = 'postpress-ai_page_postpress-ai-testbed';          // Testbed submenu (normalized) # CHANGED:
@@ -174,7 +176,7 @@ if (!function_exists('ppa_admin_enqueue')) {
 
             // Purge any PostPress AI styles EXCEPT admin-settings.css (run now + run late).                          // CHANGED:
             $purge_ppai_styles_except_settings = function() use ($rel_path, $admin_settings_css_rel) {                // CHANGED:
-                $st = wp_styles();                                                                                    // CHANGED:
+                $st = function_exists('wp_styles') ? wp_styles() : null;                                             // CHANGED:
                 if (!$st || empty($st->registered)) {                                                                 // CHANGED:
                     return;                                                                                           // CHANGED:
                 }                                                                                                     // CHANGED:
@@ -199,14 +201,39 @@ if (!function_exists('ppa_admin_enqueue')) {
                 }                                                                                                     // CHANGED:
             };                                                                                                        // CHANGED:
 
+            // CHANGED: Purge ANY PostPress AI scripts on Settings page (CSS-only page).
+            $purge_ppai_scripts = function() use ($rel_path) {                                                        // CHANGED:
+                $sc = function_exists('wp_scripts') ? wp_scripts() : null;                                            // CHANGED:
+                if (!$sc || empty($sc->registered)) {                                                                 // CHANGED:
+                    return;                                                                                           // CHANGED:
+                }                                                                                                     // CHANGED:
+                foreach ($sc->registered as $h => $dep) {                                                             // CHANGED:
+                    $src = isset($dep->src) ? (string) $dep->src : '';                                                // CHANGED:
+                    if (!$src) {                                                                                      // CHANGED:
+                        continue;                                                                                     // CHANGED:
+                    }                                                                                                 // CHANGED:
+                    if (strpos($src, $rel_path) === false) {                                                          // CHANGED:
+                        continue;                                                                                     // CHANGED:
+                    }                                                                                                 // CHANGED:
+                    if (wp_script_is($h, 'enqueued')) {                                                               // CHANGED:
+                        wp_dequeue_script($h);                                                                        // CHANGED:
+                    }                                                                                                 // CHANGED:
+                    if (wp_script_is($h, 'registered')) {                                                             // CHANGED:
+                        wp_deregister_script($h);                                                                     // CHANGED:
+                    }                                                                                                 // CHANGED:
+                }                                                                                                     // CHANGED:
+            };                                                                                                        // CHANGED:
+
             // Run immediately (in case something enqueued earlier).                                                  // CHANGED:
             $purge_ppai_styles_except_settings();                                                                     // CHANGED:
+            $purge_ppai_scripts();                                                                                    // CHANGED:
 
-            // Arm a late purge so if another callback enqueues admin.css AFTER us, we still win.                     // CHANGED:
+            // Arm a late purge so if another callback enqueues admin.css/admin.js AFTER us, we still win.            // CHANGED:
             static $ppa_settings_purge_armed = false;                                                                 // CHANGED:
             if (!$ppa_settings_purge_armed) {                                                                         // CHANGED:
                 $ppa_settings_purge_armed = true;                                                                     // CHANGED:
-                add_action('admin_print_styles', $purge_ppai_styles_except_settings, 999);                            // CHANGED:
+                add_action('admin_print_styles',  $purge_ppai_styles_except_settings, 999);                           // CHANGED:
+                add_action('admin_print_scripts', $purge_ppai_scripts, 999);                                          // CHANGED:
             }                                                                                                         // CHANGED:
 
             // Enqueue ONLY settings CSS.                                                                             // CHANGED:
