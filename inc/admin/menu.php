@@ -3,6 +3,10 @@
  * PostPress AI — Admin Menu Bootstrap
  *
  * ========= CHANGE LOG =========
+ * 2025-12-28: HARDEN: Limit Settings API bootstrap registration to only when needed (options.php saves or our Settings page). // CHANGED:
+ * 2025-12-28: FIX: Ensure license key sanitization matches Settings screen behavior even when settings.php is not loaded.      // CHANGED:
+ * 2025-12-28: CLEAN: Remove unused array-option bootstrap registration ('ppa_settings') to reduce surface area.               // CHANGED:
+ *
  * 2025-12-28: ADD: Custom SVG dashicon for PostPress AI menu; position set to 3 (high priority).  // CHANGED:
  * 2025-12-28: FIX: Remove duplicate "PostPress Composer" submenu entry.
  *             WP already auto-creates the first submenu for the parent slug via add_menu_page().              // CHANGED:
@@ -65,6 +69,24 @@ if ( ! function_exists( 'ppa_sanitize_setting_value' ) ) {                      
 }                                                                                                    // CHANGED:
 
 /**
+ * License key sanitizer used during options.php saves when settings.php isn't loaded yet.
+ * Must match the intent of PPA_Admin_Settings::sanitize_license_key().                             // CHANGED:
+ */
+if ( ! function_exists( 'ppa_sanitize_license_key_value' ) ) {                                     // CHANGED:
+	function ppa_sanitize_license_key_value( $value ) {                                             // CHANGED:
+		$value = is_string( $value ) ? trim( $value ) : '';                                          // CHANGED:
+		if ( '' === $value ) {                                                                      // CHANGED:
+			return '';                                                                              // CHANGED:
+		}                                                                                           // CHANGED:
+		$value = preg_replace( '/\s+/', '', $value );                                                // CHANGED:
+		if ( strlen( $value ) > 200 ) {                                                             // CHANGED:
+			$value = substr( $value, 0, 200 );                                                      // CHANGED:
+		}                                                                                           // CHANGED:
+		return $value;                                                                              // CHANGED:
+	}                                                                                               // CHANGED:
+}                                                                                                    // CHANGED:
+
+/**
  * Settings API bootstrap (critical for options.php saves).
  *
  * WHY:
@@ -88,35 +110,36 @@ if ( ! function_exists( 'ppa_register_settings_api_bootstrap' ) ) {             
 			return;                                                                                 // CHANGED:
 		}                                                                                            // CHANGED:
 
+		// CHANGED: Only run when needed:
+		// - options.php (saving settings)
+		// - our Settings screen (page=postpress-ai-settings)                                        // CHANGED:
+		$pagenow = isset( $GLOBALS['pagenow'] ) ? (string) $GLOBALS['pagenow'] : '';                // CHANGED:
+		$phpself = isset( $_SERVER['PHP_SELF'] ) ? basename( (string) $_SERVER['PHP_SELF'] ) : '';  // CHANGED:
+		$page    = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : '';       // CHANGED:
+
+		$is_options_php = ( 'options.php' === $pagenow ) || ( 'options.php' === $phpself );         // CHANGED:
+		$is_ppa_settings = ( 'postpress-ai-settings' === $page );                                    // CHANGED:
+
+		if ( ! $is_options_php && ! $is_ppa_settings ) {                                             // CHANGED:
+			return;                                                                                 // CHANGED:
+		}                                                                                            // CHANGED:
+
 		// Avoid overriding an existing registration if settings.php (or another file) registers first.  // CHANGED:
 		global $wp_registered_settings;                                                             // CHANGED:
 		if ( ! is_array( $wp_registered_settings ) ) {                                              // CHANGED:
 			$wp_registered_settings = array();                                                      // CHANGED:
 		}                                                                                            // CHANGED:
 
-		// Most common pattern: a single option for the license key.                                 // CHANGED:
+		// License key option must be registered by admin_init for options.php whitelist.
+		// IMPORTANT: Use the same sanitize intent as settings.php.                                   // CHANGED:
 		if ( ! isset( $wp_registered_settings['ppa_license_key'] ) ) {                              // CHANGED:
 			register_setting(                                                                       // CHANGED:
 				'ppa_settings',                                                                     // CHANGED: option_group (must match settings_fields('ppa_settings'))
 				'ppa_license_key',                                                                  // CHANGED: option_name
 				array(                                                                              // CHANGED:
 					'type'              => 'string',                                                // CHANGED:
-					'sanitize_callback' => 'ppa_sanitize_setting_value',                            // CHANGED:
+					'sanitize_callback' => 'ppa_sanitize_license_key_value',                         // CHANGED:
 					'default'           => '',                                                      // CHANGED:
-				)                                                                                   // CHANGED:
-			);                                                                                       // CHANGED:
-		}                                                                                            // CHANGED:
-
-		// Alternate pattern: store settings as an array under one option named same-ish as the group.   // CHANGED:
-		// This is harmless if unused, and prevents edge cases where the form uses ppa_settings[...].    // CHANGED:
-		if ( ! isset( $wp_registered_settings['ppa_settings'] ) ) {                                  // CHANGED:
-			register_setting(                                                                       // CHANGED:
-				'ppa_settings',                                                                     // CHANGED:
-				'ppa_settings',                                                                     // CHANGED:
-				array(                                                                              // CHANGED:
-					'type'              => 'array',                                                 // CHANGED:
-					'sanitize_callback' => 'ppa_sanitize_setting_value',                            // CHANGED:
-					'default'           => array(),                                                 // CHANGED:
 				)                                                                                   // CHANGED:
 			);                                                                                       // CHANGED:
 		}                                                                                            // CHANGED:
@@ -139,12 +162,12 @@ if ( ! function_exists( 'ppa_register_admin_menu' ) ) {
 
 		// Custom SVG icon for PostPress AI                                                         // CHANGED:
 		$icon_svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none">
-  <path d="M3 2h8.5c3.59 0 6.5 2.91 6.5 6.5S15.09 15 11.5 15H8v3H3V2z" fill="#ff8c00" opacity="0.2"/>
-  <g stroke="#ff8c00" stroke-width="1.2" stroke-linecap="round" fill="none">
-    <circle cx="12" cy="7" r="1.5"/>
-    <circle cx="7" cy="11" r="1.2"/>
-    <path d="M12 8.5 L12 10 L10 12 L7 12"/>
-    <path d="M7 11 L7 9.5"/>
+  <path d="M3 2h8.5c3.59 0 6.5 2.91 6.5 6.5S15.09 15 11.5 15H8v3H3V2z" fill="currentColor" opacity="0.9"/>
+  <g stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" fill="none">
+    <circle cx="12" cy="7" r="1.8"/>
+    <circle cx="7" cy="11" r="1.5"/>
+    <path d="M12 8.8 L12 10.5 L10 12.5 L7 12.5"/>
+    <path d="M7 11 L7 9"/>
   </g>
 </svg>'; // CHANGED:
 		$menu_icon = 'data:image/svg+xml;base64,' . base64_encode( $icon_svg );                      // CHANGED:
