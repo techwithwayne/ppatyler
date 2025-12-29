@@ -28,6 +28,8 @@
  * 2025-12-25 — POLISH: Button height parity, calmer spacing, smaller debug box, better disabled styling.   // CHANGED:
  *
  * 2025-12-26 — FINAL POLISH: Subtle hover/focus transitions + calmer card hover, without changing layout.  // CHANGED:
+ *
+ * 2025-12-28 — POLISH: Deactivate button (danger) gets clearer affordance: thicker border + subtle tint + hover fill. // CHANGED:
  */
 
 body.postpress-ai_page_postpress-ai-settings {
@@ -382,15 +384,20 @@ body.postpress-ai_page_postpress-ai-settings .wrap.ppa-admin.ppa-settings .butto
 
 /* Danger (outlined red) */
 body.postpress-ai_page_postpress-ai-settings .wrap.ppa-admin.ppa-settings .button.delete {
-  background: transparent !important;
-  border: 1px solid rgba(214,54,56,.78) !important;
-  color: #ffd7d8 !important;
+  background: rgba(214,54,56,.04) !important; /* CHANGED: subtle tint so it doesn't read "inactive" */
+  border: 2px solid rgba(214,54,56,.78) !important; /* CHANGED: stronger border weight */
+  color: #ffe3e4 !important; /* CHANGED: slightly cleaner than pink */
 }
 
 body.postpress-ai_page_postpress-ai-settings .wrap.ppa-admin.ppa-settings .button.delete:hover,
 body.postpress-ai_page_postpress-ai-settings .wrap.ppa-admin.ppa-settings .button.delete:focus {
+  background: rgba(214,54,56,.10) !important; /* CHANGED: clear hover affordance */
   border-color: var(--ppa-danger) !important;
   box-shadow: 0 0 0 2px rgba(214,54,56,.16) !important;
+}
+
+body.postpress-ai_page_postpress-ai-settings .wrap.ppa-admin.ppa-settings .button.delete:active {
+  background: rgba(214,54,56,.14) !important; /* CHANGED */
 }
 
 /* Disabled buttons (guardrails) */
