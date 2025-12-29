@@ -7,6 +7,9 @@
  * /wp-content/plugins/postpress-ai/inc/class-ppa-controller.php
  *
  * CHANGE LOG
+ * 2025-12-28 • FIX: Harden django_base() so blank/malformed ppa_django_url (or missing scheme) can’t cause      // CHANGED:
+ *              wp_remote_post “A valid URL was not provided.” Adds https:// normalization + validation fallback. // CHANGED:
+ *
  * 2025-11-19 • Expand shared key resolution (constant/option/filter) for wp.org readiness.                // CHANGED:
  * 2025-11-16 • Add generate proxy (ppa_generate) to Django /generate/ for AssistantRunner-backed content.  // CHANGED:
  * 2025-11-16 • Add mode hint support to store proxy (draft/publish/update + update support).           // CHANGED:
@@ -150,16 +153,62 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 		 * @return string
 		 */
 		private static function django_base() {                                                                          // CHANGED:
-			$base = '';
-			if ( defined( 'PPA_DJANGO_URL' ) && PPA_DJANGO_URL ) {
-				$base = (string) PPA_DJANGO_URL;
+			$base = '';                                                                                                   // CHANGED:
+
+			// 1) Constant override (wp-config.php)                                                                       // CHANGED:
+			if ( defined( 'PPA_DJANGO_URL' ) && PPA_DJANGO_URL ) {                                                        // CHANGED:
+				$base = (string) PPA_DJANGO_URL;                                                                          // CHANGED:
 			} else {
-				$base = (string) get_option( 'ppa_django_url', 'https://apps.techwithwayne.com/postpress-ai/' );
+				// 2) Option (may exist but be blank; do NOT accept blank as valid)                                       // CHANGED:
+				$opt = get_option( 'ppa_django_url', '' );                                                                // CHANGED:
+				if ( is_string( $opt ) ) {                                                                                // CHANGED:
+					$base = (string) $opt;                                                                                // CHANGED:
+				}                                                                                                          // CHANGED:
 			}
-			$base = untrailingslashit( esc_url_raw( $base ) );
+
+			$base = trim( (string) $base );                                                                               // CHANGED:
+
+			// CHANGED: Known-good fallback if option/constant is missing or blank.
+			if ( '' === $base ) {                                                                                         // CHANGED:
+				$base = 'https://apps.techwithwayne.com/postpress-ai/';                                                   // CHANGED:
+			}                                                                                                              // CHANGED:
+
+			// CHANGED: If scheme is missing, assume https:// so wp_remote_post() always gets a valid URL.
+			if ( ! preg_match( '#^https?://#i', $base ) ) {                                                                // CHANGED:
+				$base = 'https://' . ltrim( $base, '/' );                                                                 // CHANGED:
+			}                                                                                                              // CHANGED:
+
+			$base = untrailingslashit( $base );                                                                            // CHANGED:
+
 			/** @param string $base */
-			$base = (string) apply_filters( 'ppa_django_base_url', $base );                                             // CHANGED:
-			return $base;
+			$base = (string) apply_filters( 'ppa_django_base_url', $base );                                                // CHANGED:
+
+			$base = trim( (string) $base );                                                                               // CHANGED:
+
+			// CHANGED: Don’t allow filters to blank the base.
+			if ( '' === $base ) {                                                                                         // CHANGED:
+				$base = 'https://apps.techwithwayne.com/postpress-ai';                                                    // CHANGED:
+			}                                                                                                              // CHANGED:
+
+			// CHANGED: Re-apply scheme normalization after filters.
+			if ( ! preg_match( '#^https?://#i', $base ) ) {                                                                // CHANGED:
+				$base = 'https://' . ltrim( $base, '/' );                                                                 // CHANGED:
+			}                                                                                                              // CHANGED:
+
+			// CHANGED: Validate for WP HTTP API; prevents "A valid URL was not provided."
+			if ( function_exists( 'wp_http_validate_url' ) ) {                                                            // CHANGED:
+				$validated = wp_http_validate_url( $base );                                                               // CHANGED:
+				if ( $validated ) {                                                                                       // CHANGED:
+					$base = (string) $validated;                                                                           // CHANGED:
+				} else {                                                                                                   // CHANGED:
+					error_log( 'PPA: django_base invalid; falling back to default' );                                      // CHANGED:
+					$base = 'https://apps.techwithwayne.com/postpress-ai';                                                // CHANGED:
+				}                                                                                                          // CHANGED:
+			} else {                                                                                                       // CHANGED:
+				$base = untrailingslashit( esc_url_raw( $base ) );                                                         // CHANGED:
+			}                                                                                                              // CHANGED:
+
+			return untrailingslashit( (string) $base );                                                                    // CHANGED:
 		}
 
 		/**
@@ -172,7 +221,7 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			if ( defined( 'PPA_SHARED_KEY' ) && PPA_SHARED_KEY ) {                                                       // CHANGED:
 				return trim( (string) PPA_SHARED_KEY );                                                                  // CHANGED:
 			}                                                                                                            // CHANGED:
-                                                                                                                         // CHANGED:
+
 			// 2) Normal wp.org usage — key stored as an option.                                                        // CHANGED:
 			$opt = get_option( 'ppa_shared_key', '' );                                                                   // CHANGED:
 			if ( is_string( $opt ) ) {                                                                                   // CHANGED:
@@ -181,7 +230,7 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 					return $opt;                                                                                         // CHANGED:
 				}                                                                                                        // CHANGED:
 			}                                                                                                            // CHANGED:
-                                                                                                                         // CHANGED:
+
 			// 3) Future-proof hook: allow external providers to inject a key.                                          // CHANGED:
 			$filtered = apply_filters( 'ppa_shared_key', '' );                                                           // CHANGED:
 			if ( is_string( $filtered ) ) {                                                                              // CHANGED:
@@ -190,7 +239,7 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 					return $filtered;                                                                                    // CHANGED:
 				}                                                                                                        // CHANGED:
 			}                                                                                                            // CHANGED:
-                                                                                                                         // CHANGED:
+
 			return '';                                                                                                   // CHANGED:
 		}                                                                                                                // CHANGED:
 
@@ -221,10 +270,10 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 		 */
 		private static function build_args( $raw_json ) {                                                                // CHANGED:
 			$headers = array(
-				'Content-Type'   => 'application/json; charset=utf-8',
-				'Accept'         => 'application/json; charset=utf-8',                                                   // CHANGED:
-				'X-PPA-Key'      => self::require_shared_key_or_500(),                                                   // CHANGED:
-				'User-Agent'     => 'PostPressAI-WordPress/' . ( defined( 'PPA_VERSION' ) ? PPA_VERSION : 'dev' ),
+				'Content-Type'     => 'application/json; charset=utf-8',
+				'Accept'           => 'application/json; charset=utf-8',                                                 // CHANGED:
+				'X-PPA-Key'        => self::require_shared_key_or_500(),                                                 // CHANGED:
+				'User-Agent'       => 'PostPressAI-WordPress/' . ( defined( 'PPA_VERSION' ) ? PPA_VERSION : 'dev' ),
 				'X-Requested-With' => 'XMLHttpRequest',                                                                  // CHANGED:
 			);
 
@@ -263,7 +312,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			 */
 			$headers = (array) apply_filters( 'ppa_outgoing_headers', $headers, self::$endpoint );                      // CHANGED:
 
-            
 			$args = array(
 				'headers' => $headers,
 				'body'    => (string) $raw_json,
@@ -380,7 +428,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 				// Swallow all logging exceptions; never break the proxy.                                               // CHANGED:
 			}                                                                                                            // CHANGED:
 		}                                                                                                                // CHANGED:
-
 
 		/* ─────────────────────────────────────────────────────────────────────
 		 * HTML helpers (preview fallback to guarantee result.html)
@@ -572,7 +619,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 					error_log( 'PPA: store http ' . $code . ' (no local create)' );                                     // CHANGED:
 					wp_send_json_success( $json, $code );
 				}
-
 
 				$payload_json = $payload['json']; // assoc array already parsed                                         // CHANGED:
 				$result  = ( isset( $json['result'] ) && is_array( $json['result'] ) )
