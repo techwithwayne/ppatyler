@@ -40,47 +40,47 @@
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
-	exit;
+        exit;
 }
 
 /** ---------------------------------------------------------------------------------
  * Constants
  * -------------------------------------------------------------------------------- */
 if ( ! defined( 'PPA_PLUGIN_FILE' ) ) {                      // CHANGED:
-	define( 'PPA_PLUGIN_FILE', __FILE__ );                   // CHANGED:
+        define( 'PPA_PLUGIN_FILE', __FILE__ );                   // CHANGED:
 }
 if ( ! defined( 'PPA_PLUGIN_DIR' ) ) {
-	define( 'PPA_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
+        define( 'PPA_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 }
 if ( ! defined( 'PPA_PLUGIN_URL' ) ) {
-	define( 'PPA_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
+        define( 'PPA_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 }
 if ( ! defined( 'PPA_PLUGIN_VER' ) ) {
-	define( 'PPA_PLUGIN_VER', '2.1.0' );
+        define( 'PPA_PLUGIN_VER', '2.1.0' );
 }
 if ( ! defined( 'PPA_VERSION' ) ) {                          // CHANGED:
-	define( 'PPA_VERSION', PPA_PLUGIN_VER );                 // CHANGED:
+        define( 'PPA_VERSION', PPA_PLUGIN_VER );                 // CHANGED:
 }
 
 /** ---------------------------------------------------------------------------------
  * Includes (single source of truth)
  * -------------------------------------------------------------------------------- */
 add_action( 'plugins_loaded', function () {
-	// Admin UI (menu + composer renderer)
-	$admin_menu = PPA_PLUGIN_DIR . 'inc/admin/menu.php';
-	if ( file_exists( $admin_menu ) ) { require_once $admin_menu; }
+        // Admin UI (menu + composer renderer)
+        $admin_menu = PPA_PLUGIN_DIR . 'inc/admin/menu.php';
+        if ( file_exists( $admin_menu ) ) { require_once $admin_menu; }
 
-	// Admin enqueue helpers
-	$admin_enqueue = PPA_PLUGIN_DIR . 'inc/admin/enqueue.php';
-	if ( file_exists( $admin_enqueue ) ) { require_once $admin_enqueue; }
+        // Admin enqueue helpers
+        $admin_enqueue = PPA_PLUGIN_DIR . 'inc/admin/enqueue.php';
+        if ( file_exists( $admin_enqueue ) ) { require_once $admin_enqueue; }
 
-	// Frontend shortcode
-	$shortcodes = PPA_PLUGIN_DIR . 'inc/shortcodes/class-ppa-shortcodes.php';
-	if ( file_exists( $shortcodes ) ) { require_once $shortcodes; \PPA\Shortcodes\PPAShortcodes::init(); }   // CHANGED:
+        // Frontend shortcode
+        $shortcodes = PPA_PLUGIN_DIR . 'inc/shortcodes/class-ppa-shortcodes.php';
+        if ( file_exists( $shortcodes ) ) { require_once $shortcodes; \PPA\Shortcodes\PPAShortcodes::init(); }   // CHANGED:
 
-	// Logging module
-	$logging = PPA_PLUGIN_DIR . 'inc/logging/class-ppa-logging.php';
-	if ( file_exists( $logging ) ) { require_once $logging; \PPA\Logging\PPALogging::init(); }
+        // Logging module
+        $logging = PPA_PLUGIN_DIR . 'inc/logging/class-ppa-logging.php';
+        if ( file_exists( $logging ) ) { require_once $logging; \PPA\Logging\PPALogging::init(); }
 }, 9 );
 
 /** ---------------------------------------------------------------------------------
@@ -98,60 +98,60 @@ add_action( 'plugins_loaded', function () {
  * - This avoids loading settings.php on every admin request, and avoids duplicate hooks on normal pages. # CHANGED:
  * -------------------------------------------------------------------------------- */
 add_action( 'plugins_loaded', function () {                                                           // CHANGED:
-	if ( ! is_admin() ) {                                                                             // CHANGED:
-		return;                                                                                       // CHANGED:
-	}                                                                                                  // CHANGED:
+        if ( ! is_admin() ) {                                                                             // CHANGED:
+                return;                                                                                       // CHANGED:
+        }                                                                                                  // CHANGED:
 
-	// CHANGED: Robust detection: some stacks don't have $GLOBALS['pagenow'] ready this early.
-	$pagenow  = isset( $GLOBALS['pagenow'] ) ? (string) $GLOBALS['pagenow'] : '';                      // CHANGED:
-	$php_self = isset( $_SERVER['PHP_SELF'] ) ? basename( (string) $_SERVER['PHP_SELF'] ) : '';        // CHANGED:
-	if ( 'admin-post.php' !== $pagenow && 'admin-post.php' !== $php_self ) {                           // CHANGED:
-		return;                                                                                       // CHANGED:
-	}                                                                                                  // CHANGED:
+        // CHANGED: Robust detection: some stacks don't have $GLOBALS['pagenow'] ready this early.
+        $pagenow  = isset( $GLOBALS['pagenow'] ) ? (string) $GLOBALS['pagenow'] : '';                      // CHANGED:
+        $php_self = isset( $_SERVER['PHP_SELF'] ) ? basename( (string) $_SERVER['PHP_SELF'] ) : '';        // CHANGED:
+        if ( 'admin-post.php' !== $pagenow && 'admin-post.php' !== $php_self ) {                           // CHANGED:
+                return;                                                                                       // CHANGED:
+        }                                                                                                  // CHANGED:
 
-	// CHANGED: Only arm fallback when THIS request is actually one of our actions.
-	$req_action = '';                                                                                  // CHANGED:
-	if ( isset( $_REQUEST['action'] ) ) {                                                              // CHANGED:
-		$req_action = sanitize_key( wp_unslash( $_REQUEST['action'] ) );                               // CHANGED:
-	}                                                                                                  // CHANGED:
+        // CHANGED: Only arm fallback when THIS request is actually one of our actions.
+        $req_action = '';                                                                                  // CHANGED:
+        if ( isset( $_REQUEST['action'] ) ) {                                                              // CHANGED:
+                $req_action = sanitize_key( wp_unslash( $_REQUEST['action'] ) );                               // CHANGED:
+        }                                                                                                  // CHANGED:
 
-	$action_map = array(                                                                               // CHANGED:
-		'ppa_test_connectivity' => 'handle_test_connectivity',                                          // CHANGED:
-		'ppa_license_verify'    => 'handle_license_verify',                                             // CHANGED:
-		'ppa_license_activate'  => 'handle_license_activate',                                           // CHANGED:
-		'ppa_license_deactivate'=> 'handle_license_deactivate',                                         // CHANGED:
-	);                                                                                                  // CHANGED:
+        $action_map = array(                                                                               // CHANGED:
+                'ppa_test_connectivity' => 'handle_test_connectivity',                                          // CHANGED:
+                'ppa_license_verify'    => 'handle_license_verify',                                             // CHANGED:
+                'ppa_license_activate'  => 'handle_license_activate',                                           // CHANGED:
+                'ppa_license_deactivate'=> 'handle_license_deactivate',                                         // CHANGED:
+        );                                                                                                  // CHANGED:
 
-	if ( '' === $req_action || ! isset( $action_map[ $req_action ] ) ) {                               // CHANGED:
-		return;                                                                                       // CHANGED:
-	}                                                                                                  // CHANGED:
+        if ( '' === $req_action || ! isset( $action_map[ $req_action ] ) ) {                               // CHANGED:
+                return;                                                                                       // CHANGED:
+        }                                                                                                  // CHANGED:
 
-	$settings_file = PPA_PLUGIN_DIR . 'inc/admin/settings.php';                                        // CHANGED:
+        $settings_file = PPA_PLUGIN_DIR . 'inc/admin/settings.php';                                        // CHANGED:
 
-	$dispatch = function ( $method, $action ) use ( $settings_file ) {                                 // CHANGED:
-		// Require settings.php only when a settings action actually fires (this request).            // CHANGED:
-		if ( file_exists( $settings_file ) ) {                                                        // CHANGED:
-			require_once $settings_file;                                                              // CHANGED:
-		}                                                                                              // CHANGED:
+        $dispatch = function ( $method, $action ) use ( $settings_file ) {                                 // CHANGED:
+                // Require settings.php only when a settings action actually fires (this request).            // CHANGED:
+                if ( file_exists( $settings_file ) ) {                                                        // CHANGED:
+                        require_once $settings_file;                                                              // CHANGED:
+                }                                                                                              // CHANGED:
 
-		if ( class_exists( 'PPA_Admin_Settings' ) && is_callable( array( 'PPA_Admin_Settings', $method ) ) ) { // CHANGED:
-			// Call the real handler (it does capability + nonce checks and redirects).              // CHANGED:
-			call_user_func( array( 'PPA_Admin_Settings', $method ) );                                 // CHANGED:
-			exit; // Safety: the handler normally redirects+exits; this guarantees no fall-through.  // CHANGED:
-		}                                                                                              // CHANGED:
+                if ( class_exists( 'PPA_Admin_Settings' ) && is_callable( array( 'PPA_Admin_Settings', $method ) ) ) { // CHANGED:
+                        // Call the real handler (it does capability + nonce checks and redirects).              // CHANGED:
+                        call_user_func( array( 'PPA_Admin_Settings', $method ) );                                 // CHANGED:
+                        exit; // Safety: the handler normally redirects+exits; this guarantees no fall-through.  // CHANGED:
+                }                                                                                              // CHANGED:
 
-		error_log( 'PPA: admin-post fallback could not dispatch ' . $action . ' → ' . $method );       // CHANGED:
-		wp_die( esc_html__( 'PostPress AI settings handler missing. Please reinstall or contact support.', 'postpress-ai' ), 'PostPress AI', array( 'response' => 500 ) ); // CHANGED:
-	};                                                                                                 // CHANGED:
+                error_log( 'PPA: admin-post fallback could not dispatch ' . $action . ' → ' . $method );       // CHANGED:
+                wp_die( esc_html__( 'PostPress AI settings handler missing. Please reinstall or contact support.', 'postpress-ai' ), 'PostPress AI', array( 'response' => 500 ) ); // CHANGED:
+        };                                                                                                 // CHANGED:
 
-	$method = $action_map[ $req_action ];                                                              // CHANGED:
+        $method = $action_map[ $req_action ];                                                              // CHANGED:
 
-	// CHANGED: Register ONLY the one hook needed for this request.
-	add_action( 'admin_post_' . $req_action, function () use ( $dispatch, $method, $req_action ) {     // CHANGED:
-		$dispatch( $method, $req_action );                                                            // CHANGED:
-	}, 0 );                                                                                            // CHANGED:
+        // CHANGED: Register ONLY the one hook needed for this request.
+        add_action( 'admin_post_' . $req_action, function () use ( $dispatch, $method, $req_action ) {     // CHANGED:
+                $dispatch( $method, $req_action );                                                            // CHANGED:
+        }, 0 );                                                                                            // CHANGED:
 
-	error_log( 'PPA: admin-post fallback armed (action=' . $req_action . ')' );                        // CHANGED:
+        error_log( 'PPA: admin-post fallback armed (action=' . $req_action . ')' );                        // CHANGED:
 }, 7 );                                                                                                 // CHANGED:
 
 /** ---------------------------------------------------------------------------------
@@ -159,94 +159,94 @@ add_action( 'plugins_loaded', function () {                                     
  * Prefer controller class; fallback to legacy inc/ajax/* files if missing.
  * -------------------------------------------------------------------------------- */
 add_action( 'plugins_loaded', function () {
-	$controller = PPA_PLUGIN_DIR . 'inc/class-ppa-controller.php';
-	$ajax_dir   = PPA_PLUGIN_DIR . 'inc/ajax/';
+        $controller = PPA_PLUGIN_DIR . 'inc/class-ppa-controller.php';
+        $ajax_dir   = PPA_PLUGIN_DIR . 'inc/ajax/';
 
-	if ( file_exists( $controller ) ) {
-		// Preferred: class registers wp_ajax_* hooks internally.
-		require_once $controller;
-	} else {
-		foreach ( array( 'preview.php', 'store.php' ) as $file ) {
-			$path = $ajax_dir . $file;
-			if ( file_exists( $path ) ) { require_once $path; }
-		}
-	}
+        if ( file_exists( $controller ) ) {
+                // Preferred: class registers wp_ajax_* hooks internally.
+                require_once $controller;
+        } else {
+                foreach ( array( 'preview.php', 'store.php' ) as $file ) {
+                        $path = $ajax_dir . $file;
+                        if ( file_exists( $path ) ) { require_once $path; }
+                }
+        }
 
-	// marker.php is always loaded (no controller equivalent).
-	$marker = PPA_PLUGIN_DIR . 'inc/ajax/marker.php';
-	if ( file_exists( $marker ) ) { require_once $marker; }
+        // marker.php is always loaded (no controller equivalent).
+        $marker = PPA_PLUGIN_DIR . 'inc/ajax/marker.php';
+        if ( file_exists( $marker ) ) { require_once $marker; }
 }, 8 );
 
 /** ---------------------------------------------------------------------------------
  * Admin enqueue — delegate to inc/admin/enqueue.php (single source of truth)
  * -------------------------------------------------------------------------------- */
 add_action( 'plugins_loaded', function () {                                                      // CHANGED:
-	if ( function_exists( 'ppa_admin_enqueue' ) ) {                                              // CHANGED:
-		// Neutralize any earlier hooks that might enqueue duplicates at other priorities.       // CHANGED:
-		remove_action( 'admin_enqueue_scripts', 'ppa_admin_enqueue', 10 );                       // CHANGED:
-		remove_action( 'admin_enqueue_scripts', 'ppa_admin_enqueue', 99 );                       // CHANGED:
-		add_action( 'admin_enqueue_scripts', 'ppa_admin_enqueue', 99 );                          // CHANGED:
-	}
+        if ( function_exists( 'ppa_admin_enqueue' ) ) {                                              // CHANGED:
+                // Neutralize any earlier hooks that might enqueue duplicates at other priorities.       // CHANGED:
+                remove_action( 'admin_enqueue_scripts', 'ppa_admin_enqueue', 10 );                       // CHANGED:
+                remove_action( 'admin_enqueue_scripts', 'ppa_admin_enqueue', 99 );                       // CHANGED:
+                add_action( 'admin_enqueue_scripts', 'ppa_admin_enqueue', 99 );                          // CHANGED:
+        }
 }, 10 );                                                                                         // CHANGED:
 
 /** ---------------------------------------------------------------------------------
  * Admin asset cache-busting (ver=filemtime) — enforce for admin handles/SRCs
  * -------------------------------------------------------------------------------- */
 add_action( 'admin_init', function () {                                                          // CHANGED:
-	// Styles (admin) — by handle
-	add_filter( 'style_loader_src', function ( $src, $handle ) {
-		if ( 'ppa-admin-css' !== $handle ) { return $src; }
-		$file = PPA_PLUGIN_DIR . 'assets/css/admin.css';
-		$ver  = ( file_exists( $file ) ? (string) filemtime( $file ) : PPA_VERSION );
-		$src  = remove_query_arg( 'ver', $src );
-		return add_query_arg( 'ver', $ver, $src );
-	}, 10, 2 );
+        // Styles (admin) — by handle
+        add_filter( 'style_loader_src', function ( $src, $handle ) {
+                if ( 'ppa-admin-css' !== $handle ) { return $src; }
+                $file = PPA_PLUGIN_DIR . 'assets/css/admin.css';
+                $ver  = ( file_exists( $file ) ? (string) filemtime( $file ) : PPA_VERSION );
+                $src  = remove_query_arg( 'ver', $src );
+                return add_query_arg( 'ver', $ver, $src );
+        }, 10, 2 );
 
-	// Scripts (admin) — by handle (ppa-admin, ppa-testbed)
-	add_filter( 'script_loader_src', function ( $src, $handle ) {
-		if ( 'ppa-admin' !== $handle && 'ppa-testbed' !== $handle ) { return $src; }
-		$file = ( 'ppa-admin' === $handle )
-			? ( PPA_PLUGIN_DIR . 'assets/js/admin.js' )
-			: ( PPA_PLUGIN_DIR . 'inc/admin/ppa-testbed.js' );
-		$ver  = ( file_exists( $file ) ? (string) filemtime( $file ) : PPA_VERSION );
-		$src  = remove_query_arg( 'ver', $src );
-		return add_query_arg( 'ver', $ver, $src );
-	}, 10, 2 );
+        // Scripts (admin) — by handle (ppa-admin, ppa-testbed)
+        add_filter( 'script_loader_src', function ( $src, $handle ) {
+                if ( 'ppa-admin' !== $handle && 'ppa-testbed' !== $handle ) { return $src; }
+                $file = ( 'ppa-admin' === $handle )
+                        ? ( PPA_PLUGIN_DIR . 'assets/js/admin.js' )
+                        : ( PPA_PLUGIN_DIR . 'inc/admin/ppa-testbed.js' );
+                $ver  = ( file_exists( $file ) ? (string) filemtime( $file ) : PPA_VERSION );
+                $src  = remove_query_arg( 'ver', $src );
+                return add_query_arg( 'ver', $ver, $src );
+        }, 10, 2 );
 
-	// Scripts (admin) — by SRC (catch-all): if any handle loads our admin.js path, force filemtime ver.   # CHANGED:
-	add_filter( 'script_loader_src', function ( $src, $handle ) {                                          // CHANGED:
-		// Quick path check; works for absolute URLs too.                                                  // CHANGED:
-		if ( strpos( (string) $src, 'postpress-ai/assets/js/admin.js' ) === false ) {                      // CHANGED:
-			return $src;                                                                                  // CHANGED:
-		}                                                                                                  // CHANGED:
-		$file = PPA_PLUGIN_DIR . 'assets/js/admin.js';                                                     // CHANGED:
-		$ver  = ( file_exists( $file ) ? (string) filemtime( $file ) : PPA_VERSION );                      // CHANGED:
-		$src  = remove_query_arg( 'ver', $src );                                                           // CHANGED:
-		return add_query_arg( 'ver', $ver, $src );                                                         // CHANGED:
-	}, 999, 2 );                                                                                            // CHANGED:
+        // Scripts (admin) — by SRC (catch-all): if any handle loads our admin.js path, force filemtime ver.   # CHANGED:
+        add_filter( 'script_loader_src', function ( $src, $handle ) {                                          // CHANGED:
+                // Quick path check; works for absolute URLs too.                                                  // CHANGED:
+                if ( strpos( (string) $src, 'postpress-ai/assets/js/admin.js' ) === false ) {                      // CHANGED:
+                        return $src;                                                                                  // CHANGED:
+                }                                                                                                  // CHANGED:
+                $file = PPA_PLUGIN_DIR . 'assets/js/admin.js';                                                     // CHANGED:
+                $ver  = ( file_exists( $file ) ? (string) filemtime( $file ) : PPA_VERSION );                      // CHANGED:
+                $src  = remove_query_arg( 'ver', $src );                                                           // CHANGED:
+                return add_query_arg( 'ver', $ver, $src );                                                         // CHANGED:
+        }, 999, 2 );                                                                                            // CHANGED:
 }, 9 );                                                                                                      // CHANGED:
 
 /** ---------------------------------------------------------------------------------
  * Public asset cache-busting (ver=filemtime) — handles registered by shortcode
  * -------------------------------------------------------------------------------- */
 add_action( 'init', function () {
-	// Styles
-	add_filter( 'style_loader_src', function ( $src, $handle ) {
-		if ( 'ppa-frontend' !== $handle ) { return $src; }
-		$file = PPA_PLUGIN_DIR . 'assets/css/ppa-frontend.css';
-		$ver  = ( file_exists( $file ) ? (string) filemtime( $file ) : PPA_VERSION );
-		$src  = remove_query_arg( 'ver', $src );
-		return add_query_arg( 'ver', $ver, $src );
-	}, 10, 2 );
+        // Styles
+        add_filter( 'style_loader_src', function ( $src, $handle ) {
+                if ( 'ppa-frontend' !== $handle ) { return $src; }
+                $file = PPA_PLUGIN_DIR . 'assets/css/ppa-frontend.css';
+                $ver  = ( file_exists( $file ) ? (string) filemtime( $file ) : PPA_VERSION );
+                $src  = remove_query_arg( 'ver', $src );
+                return add_query_arg( 'ver', $ver, $src );
+        }, 10, 2 );
 
-	// Scripts
-	add_filter( 'script_loader_src', function ( $src, $handle ) {
-		if ( 'ppa-frontend' !== $handle ) { return $src; }
-		$file = PPA_PLUGIN_DIR . 'assets/js/ppa-frontend.js';
-		$ver  = ( file_exists( $file ) ? (string) filemtime( $file ) : PPA_VERSION );
-		$src  = remove_query_arg( 'ver', $src );
-		return add_query_arg( 'ver', $ver, $src );
-	}, 10, 2 );
+        // Scripts
+        add_filter( 'script_loader_src', function ( $src, $handle ) {
+                if ( 'ppa-frontend' !== $handle ) { return $src; }
+                $file = PPA_PLUGIN_DIR . 'assets/js/ppa-frontend.js';
+                $ver  = ( file_exists( $file ) ? (string) filemtime( $file ) : PPA_VERSION );
+                $src  = remove_query_arg( 'ver', $src );
+                return add_query_arg( 'ver', $ver, $src );
+        }, 10, 2 );
 }, 12 );
 
 /** ---------------------------------------------------------------------------------
