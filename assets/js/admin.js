@@ -4,6 +4,7 @@
  * Path: assets/js/admin.js
  *
  * ========= CHANGE LOG =========
+ * 2025-12-30.1: UX: After successful Save Draft (store), open the draft edit screen in a new tab (popup-safe via about:blank) and render/update a "View Draft" link right after the Save Draft button. No endpoint/payload changes. // CHANGED:
  * 2025-12-22.1: Preview outline cleanup: stop rendering Outline in a <pre> block; render Outline via markdownToHtml() inside a <div class="ppa-outline"> to prevent pre overflow/wrap issues; broaden list hardening scope to the full preview pane so Outline + Body bullets render reliably. // CHANGED:
  *               No contract changes. No endpoint changes. No payload shape changes. Preview pane placement preserved. // CHANGED:
  * 2025-12-21.8: Preview pane list hardening: restore visible bullets + safe left padding and wrapping for ul/ol/li inside the preview pane only (WP admin resets were hiding markers / clipping). // CHANGED:
@@ -49,7 +50,7 @@
 (function () {
   'use strict';
 
-  var PPA_JS_VER = 'admin.v2025-12-22.1'; // CHANGED:
+  var PPA_JS_VER = 'admin.v2025-12-30.1'; // CHANGED:
 
   // Abort if composer root is missing (defensive)
   var root = document.getElementById('ppa-composer');
@@ -752,36 +753,126 @@
     return '';
   }
 
-  function pickId(body) {
-    try {
-      if (body && typeof body === 'object') {
-        if (body.id) return body.id;
-        if (body.data && body.data.id) return body.data.id;
-        if (body.data && body.data.post_id) return body.data.post_id;
-      }
-    } catch (e) {}
-    return '';
+  function pickId(body) { // CHANGED:
+    try { // CHANGED:
+      if (body && typeof body === 'object') { // CHANGED:
+        if (body.id) return body.id; // CHANGED:
+        if (body.post_id) return body.post_id; // CHANGED:
+        if (body.result && typeof body.result === 'object') { // CHANGED:
+          if (body.result.id) return body.result.id; // CHANGED:
+          if (body.result.post_id) return body.result.post_id; // CHANGED:
+        } // CHANGED:
+        if (body.data && typeof body.data === 'object') { // CHANGED:
+          if (body.data.id) return body.data.id; // CHANGED:
+          if (body.data.post_id) return body.data.post_id; // CHANGED:
+          if (body.data.result && typeof body.data.result === 'object') { // CHANGED:
+            if (body.data.result.id) return body.data.result.id; // CHANGED:
+            if (body.data.result.post_id) return body.data.result.post_id; // CHANGED:
+          } // CHANGED:
+        } // CHANGED:
+      } // CHANGED:
+    } catch (e) {} // CHANGED:
+    return ''; // CHANGED:
   }
 
-  function pickEditLink(body) {
-    try {
-      if (body && typeof body === 'object') {
-        if (body.edit_link) return body.edit_link;
-        if (body.data && body.data.edit_link) return body.data.edit_link;
-      }
-    } catch (e) {}
-    return '';
+  function pickEditLink(body) { // CHANGED:
+    try { // CHANGED:
+      if (body && typeof body === 'object') { // CHANGED:
+        if (body.edit_link) return body.edit_link; // CHANGED:
+        if (body.result && typeof body.result === 'object' && body.result.edit_link) return body.result.edit_link; // CHANGED:
+        if (body.data && typeof body.data === 'object') { // CHANGED:
+          if (body.data.edit_link) return body.data.edit_link; // CHANGED:
+          if (body.data.result && typeof body.data.result === 'object' && body.data.result.edit_link) return body.data.result.edit_link; // CHANGED:
+        } // CHANGED:
+      } // CHANGED:
+    } catch (e) {} // CHANGED:
+    return ''; // CHANGED:
   }
 
-  function pickViewLink(body) {
-    try {
-      if (body && typeof body === 'object') {
-        if (body.view_link) return body.view_link;
-        if (body.data && body.data.view_link) return body.data.view_link;
-      }
-    } catch (e) {}
-    return '';
+  function pickViewLink(body) { // CHANGED:
+    try { // CHANGED:
+      if (body && typeof body === 'object') { // CHANGED:
+        if (body.view_link) return body.view_link; // CHANGED:
+        if (body.result && typeof body.result === 'object' && body.result.view_link) return body.result.view_link; // CHANGED:
+        if (body.data && typeof body.data === 'object') { // CHANGED:
+          if (body.data.view_link) return body.data.view_link; // CHANGED:
+          if (body.data.result && typeof body.data.result === 'object' && body.data.result.view_link) return body.data.result.view_link; // CHANGED:
+        } // CHANGED:
+      } // CHANGED:
+    } catch (e) {} // CHANGED:
+    return ''; // CHANGED:
   }
+
+  function buildWpEditUrlFromId(id) { // CHANGED:
+    var n = parseInt(id, 10); // CHANGED:
+    if (!n || n < 1) return ''; // CHANGED:
+    return '/wp-admin/post.php?post=' + encodeURIComponent(String(n)) + '&action=edit'; // CHANGED:
+  } // CHANGED:
+
+  function upsertViewDraftLink(editUrl) { // CHANGED:
+    var href = String(editUrl || '').trim(); // CHANGED:
+    if (!href) return null; // CHANGED:
+
+    var a = document.getElementById('ppa-view-draft-link'); // CHANGED:
+    if (!a) { // CHANGED:
+      a = document.createElement('a'); // CHANGED:
+      a.id = 'ppa-view-draft-link'; // CHANGED:
+      a.textContent = 'View Draft'; // CHANGED:
+      a.target = '_blank'; // CHANGED:
+      a.rel = 'noopener noreferrer'; // CHANGED:
+
+      // Prefer: immediately after the Save Draft button (btnDraft). // CHANGED:
+      var wrap = document.getElementById('ppa-view-draft-wrap'); // CHANGED:
+      if (!wrap) { // CHANGED:
+        wrap = document.createElement('span'); // CHANGED:
+        wrap.id = 'ppa-view-draft-wrap'; // CHANGED:
+        wrap.className = 'ppa-view-draft-wrap'; // CHANGED:
+        try { // CHANGED:
+          wrap.style.marginLeft = '10px'; // CHANGED:
+          wrap.style.whiteSpace = 'nowrap'; // CHANGED:
+          wrap.style.display = 'inline-block'; // CHANGED:
+        } catch (e0) {} // CHANGED:
+      } // CHANGED:
+
+      // Ensure the anchor is inside our wrapper (so we can insert once). // CHANGED:
+      try { // CHANGED:
+        if (a.parentNode !== wrap) { // CHANGED:
+          while (wrap.firstChild) wrap.removeChild(wrap.firstChild); // CHANGED:
+          wrap.appendChild(a); // CHANGED:
+        } // CHANGED:
+      } catch (e1) {} // CHANGED:
+
+      var inserted = false; // CHANGED:
+      try { // CHANGED:
+        if (btnDraft && btnDraft.parentNode) { // CHANGED:
+          if (btnDraft.nextSibling) btnDraft.parentNode.insertBefore(wrap, btnDraft.nextSibling); // CHANGED:
+          else btnDraft.parentNode.appendChild(wrap); // CHANGED:
+          inserted = true; // CHANGED:
+        } // CHANGED:
+      } catch (e2) { inserted = false; } // CHANGED:
+
+      // Fallback: append near toolbar notice container or composer root. // CHANGED:
+      if (!inserted) { // CHANGED:
+        try { // CHANGED:
+          var msg = noticeContainer(); // CHANGED:
+          if (msg && msg.parentNode) { // CHANGED:
+            if (msg.nextSibling) msg.parentNode.insertBefore(wrap, msg.nextSibling); // CHANGED:
+            else msg.parentNode.appendChild(wrap); // CHANGED:
+            inserted = true; // CHANGED:
+          } // CHANGED:
+        } catch (e3) { inserted = false; } // CHANGED:
+      } // CHANGED:
+      if (!inserted) { // CHANGED:
+        try { root.appendChild(wrap); } catch (e4) {} // CHANGED:
+      } // CHANGED:
+    } // CHANGED:
+
+    // Always update the URL + safety attrs. // CHANGED:
+    try { a.href = href; } catch (e5) {} // CHANGED:
+    try { a.target = '_blank'; } catch (e6) {} // CHANGED:
+    try { a.rel = 'noopener noreferrer'; } catch (e7) {} // CHANGED:
+    return a; // CHANGED:
+  } // CHANGED:
 
   function stopEvent(ev) {
     if (!ev) return;
@@ -802,17 +893,49 @@
         return;
       }
 
+      // Popup-safe behavior: open a blank tab immediately on click, then navigate it on success. // CHANGED:
+      // This avoids popup blockers that would block window.open() inside async callbacks.         // CHANGED:
+      var draftTab = null; // CHANGED:
+      try { draftTab = window.open('about:blank', '_blank'); } catch (e0) { draftTab = null; } // CHANGED:
+      if (draftTab) { // CHANGED:
+        try { draftTab.opener = null; } catch (e1) {} // CHANGED:
+        try { draftTab.document.title = 'PostPress AI — Opening Draft…'; } catch (e2) {} // CHANGED:
+      } // CHANGED:
+
       withBusy(function () {
         var payload = buildStorePayload('draft');
         return apiPost('ppa_store', payload).then(function (res) {
           var wp = unwrapWpAjax(res.body);
           var data = wp.hasEnvelope ? wp.data : res.body;
           var msg = pickMessage(res.body) || 'Draft request sent.';
+
           if (!res.ok || (wp.hasEnvelope && !wp.success)) {
             renderNotice('error', 'Save draft failed (' + res.status + '): ' + msg);
             console.info('PPA: draft failed', res);
+            // If we opened a blank tab for this action, close it on failure. // CHANGED:
+            try { if (draftTab && !draftTab.closed) draftTab.close(); } catch (e3) {} // CHANGED:
             return;
           }
+
+          // Extract edit URL from the store response (multiple shapes supported), fallback to ID. // CHANGED:
+          var edit = pickEditLink(data) || pickEditLink(res.body); // CHANGED:
+          var pid = pickId(data) || pickId(res.body); // CHANGED:
+          if (!edit && pid) edit = buildWpEditUrlFromId(pid); // CHANGED:
+
+          // Always create/update the "View Draft" link (if we can resolve an edit URL). // CHANGED:
+          if (edit) upsertViewDraftLink(edit); // CHANGED:
+
+          // Navigate the already-opened tab to the edit screen (popup-safe). // CHANGED:
+          if (draftTab) { // CHANGED:
+            if (edit) { // CHANGED:
+              try { draftTab.location.href = String(edit); } catch (e4) { try { draftTab.location = String(edit); } catch (e5) {} } // CHANGED:
+              try { draftTab.focus(); } catch (e6) {} // CHANGED:
+            } else { // CHANGED:
+              // If no URL could be derived, don't leave a blank tab open. // CHANGED:
+              try { if (!draftTab.closed) draftTab.close(); } catch (e7) {} // CHANGED:
+            } // CHANGED:
+          } // CHANGED:
+
           renderNoticeTimed('success', 'Draft saved successfully.', 3500);
           console.info('PPA: draft ok', data);
         });

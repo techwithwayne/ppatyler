@@ -110,16 +110,16 @@ $current_user = wp_get_current_user();
         </details>
 
         <div class="ppa-actions" role="group" aria-label="<?php echo esc_attr__( 'Composer actions', 'postpress-ai' ); ?>">
-            <button id="ppa-preview" class="ppa-btn ppa-btn-primary" type="button">
+            <button id="ppa-preview" class="ppa-btn ppa-btn-primary" type="button" style="display:none !important;">
                 <?php echo esc_html__( 'Preview', 'postpress-ai' ); ?>
             </button>
             <button id="ppa-generate" class="ppa-btn ppa-btn-secondary" type="button">                       <!-- CHANGED -->
                 <?php echo esc_html__( 'Generate Draft', 'postpress-ai' ); ?>                                <!-- CHANGED -->
             </button>                                                                                        <!-- CHANGED -->
             <button id="ppa-draft" class="ppa-btn ppa-btn-secondary" type="button">
-                <?php echo esc_html__( 'Save Draft (Store)', 'postpress-ai' ); ?>
+                <?php echo esc_html__( 'Save Draft', 'postpress-ai' ); ?>
             </button>
-            <button id="ppa-publish" class="ppa-btn ppa-btn-secondary" type="button">
+            <button id="ppa-publish" class="ppa-btn ppa-btn-secondary" type="button" style="display:none !important;" >
                 <?php echo esc_html__( 'Publish', 'postpress-ai' ); ?>
             </button>
             <span class="ppa-note">
