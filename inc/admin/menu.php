@@ -200,22 +200,26 @@ if ( ! function_exists( 'ppa_register_admin_menu' ) ) {
 			'ppa_render_settings'                                                                 // CHANGED:
 		);                                                                                        // CHANGED:
 
-		// Testbed submenu (admin-only AND gated)                                                 // CHANGED:
-		$testbed_enabled = ( defined( 'PPA_ENABLE_TESTBED' ) && true === PPA_ENABLE_TESTBED );    // CHANGED:
-		if ( $testbed_enabled ) {                                                                // CHANGED:
-			add_submenu_page(                                                                     // CHANGED:
-				$menu_slug,                                                                       // CHANGED:
-				__( 'PPA Testbed', 'postpress-ai' ),                                               // CHANGED:
-				__( 'Testbed', 'postpress-ai' ),                                                   // CHANGED:
-				$capability_admin,                                                                // CHANGED:
-				'postpress-ai-testbed',                                                           // CHANGED: normalized slug
-				'ppa_render_testbed'                                                              // CHANGED:
-			);                                                                                    // CHANGED:
-		}                                                                                        // CHANGED:
+		// Testbed page: keep menu hidden by default, but allow direct URL access --------------------- // CHANGED:
+		$testbed_enabled = ( defined( 'PPA_ENABLE_TESTBED' ) && true === PPA_ENABLE_TESTBED );           // CHANGED:
 
-		// Remove any legacy Tools→Testbed to avoid duplicates (harmless if not present).         // CHANGED:
-		remove_submenu_page( 'tools.php', 'ppa-testbed' );                                       // CHANGED:
-		remove_submenu_page( 'tools.php', 'postpress-ai-testbed' );                              // CHANGED:
+		// If enabled: show under PostPress AI menu.
+		// If disabled: register as a hidden admin page (parent = null) so direct URL works.           // CHANGED:
+		$testbed_parent = $testbed_enabled ? $menu_slug : null;                                         // CHANGED:
+		$testbed_label  = $testbed_enabled ? __( 'Testbed', 'postpress-ai' ) : '';                       // CHANGED:
+
+		add_submenu_page(                                                                                // CHANGED:
+			$testbed_parent,                                                                             // CHANGED:
+			__( 'PPA Testbed', 'postpress-ai' ),                                                         // CHANGED:
+			$testbed_label,                                                                              // CHANGED:
+			$capability_admin,                                                                           // CHANGED:
+			'postpress-ai-testbed',                                                                      // CHANGED: normalized slug
+			'ppa_render_testbed'                                                                         // CHANGED:
+		);                                                                                               // CHANGED:
+
+		// Remove any legacy Tools→Testbed to avoid duplicates (harmless if not present).                // CHANGED:
+		remove_submenu_page( 'tools.php', 'ppa-testbed' );                                              // CHANGED:
+		remove_submenu_page( 'tools.php', 'postpress-ai-testbed' );                                     // CHANGED:
 
 		error_log( 'PPA: admin_menu registered (slug=' . $menu_slug . ')' );
 	}
