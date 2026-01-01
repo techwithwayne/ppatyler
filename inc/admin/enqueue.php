@@ -3,9 +3,11 @@
  * PostPress AI — Admin Enqueue
  *
  * ========= CHANGE LOG =========
- * 2026-01-01 • FIX: Enqueue Testbed-only CSS when present (admin-testbed.css). Keeps per-screen CSS modular.    # CHANGED:
- * 2026-01-01 • KEEP: Composer loads only admin-composer.css when present (no admin.css on Composer).           # CHANGED:
- * 2026-01-01 • KEEP: Settings remains CSS-only and enforces “no admin.css / no JS”.                            # CHANGED:
+ * 2026-01-01 • HARDEN: Gate ALL Testbed enqueues behind PPA_ENABLE_TESTBED === true.                           // CHANGED:
+ *              Direct URL hits to Testbed while disabled enqueue nothing (keeps logs clean).                   // CHANGED:
+ * 2026-01-01 • FIX: Enqueue Testbed-only CSS when present (admin-testbed.css). Keeps per-screen CSS modular.   # CHANGED:
+ * 2026-01-01 • KEEP: Composer loads only admin-composer.css when present (no admin.css on Composer).          # CHANGED:
+ * 2026-01-01 • KEEP: Settings remains CSS-only and enforces “no admin.css / no JS”.                           # CHANGED:
  *
  * 2025-12-28 • HARDEN: Settings screen JS isolation is now “airtight” by arming a late admin_print_scripts purge.      # CHANGED:
  *              This guarantees Settings is truly CSS-only (no PostPress AI JS can sneak in).                           # CHANGED:
@@ -184,6 +186,14 @@ if (!function_exists('ppa_admin_enqueue')) {
             return;                                                                                                  // CHANGED:
         }                                                                                                            // CHANGED:
 
+        // DEV-only: Testbed is disabled unless explicitly enabled.                                                  // CHANGED:
+        $testbed_enabled = (defined('PPA_ENABLE_TESTBED') && true === PPA_ENABLE_TESTBED);                           // CHANGED:
+
+        // If someone hits the Testbed URL while disabled, enqueue NOTHING (stay quiet).                             // CHANGED:
+        if ($is_testbed && !$testbed_enabled) {                                                                      // CHANGED:
+            return;                                                                                                  // CHANGED:
+        }                                                                                                            // CHANGED:
+
         // ---------------------------------------------------------------------
         // SETTINGS PAGE: enforce CSS-only + airtight “no admin.css” rule
         // ---------------------------------------------------------------------
@@ -266,7 +276,7 @@ if (!function_exists('ppa_admin_enqueue')) {
         $effective_css_ver = $admin_css_ver;                                                                          // CHANGED:
         if ($is_main_ui && file_exists($admin_composer_css_file)) {                                                   // CHANGED:
             $effective_css_ver = $admin_composer_css_ver;                                                             // CHANGED:
-        } elseif ($is_testbed && file_exists($admin_testbed_css_file)) {                                              // CHANGED:
+        } elseif ($is_testbed && $testbed_enabled && file_exists($admin_testbed_css_file)) {                          // CHANGED:
             $effective_css_ver = $admin_testbed_css_ver;                                                              // CHANGED:
         }                                                                                                             // CHANGED:
 
@@ -346,7 +356,7 @@ if (!function_exists('ppa_admin_enqueue')) {
             if ($is_main_ui && file_exists($admin_composer_css_file)) {                                              // CHANGED:
                 wp_register_style('ppa-admin-composer-css', $admin_composer_css_url, array(), $admin_composer_css_ver, 'all'); // CHANGED:
                 wp_enqueue_style('ppa-admin-composer-css');                                                          // CHANGED:
-            } elseif ($is_testbed && file_exists($admin_testbed_css_file)) {                                         // CHANGED:
+            } elseif ($is_testbed && $testbed_enabled && file_exists($admin_testbed_css_file)) {                      // CHANGED:
                 wp_register_style('ppa-admin-testbed-css', $admin_testbed_css_url, array(), $admin_testbed_css_ver, 'all');   // CHANGED:
                 wp_enqueue_style('ppa-admin-testbed-css');                                                           // CHANGED:
             } else {
@@ -422,8 +432,8 @@ if (!function_exists('ppa_admin_enqueue')) {
                 wp_enqueue_script('ppa-admin-preview-spinner');
             }
 
-            // Testbed-only helper JS
-            if ($is_testbed) {
+            // Testbed-only helper JS (DEV-only)
+            if ($is_testbed && $testbed_enabled) {                                                                    // CHANGED:
                 wp_register_script('ppa-testbed', $testbed_js_url, array('ppa-admin-config'), $testbed_js_ver, true);
                 wp_enqueue_script('ppa-testbed');
             }
