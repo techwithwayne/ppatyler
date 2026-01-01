@@ -14,34 +14,39 @@
  * - Connection Key is legacy; if present we use it, otherwise we use License Key as the auth key. // CHANGED:
  *
  * ========= CHANGE LOG =========
- * 2025-12-28: CLEAN: Remove duplicate submit_button() guard that was repeated inside render_page().             // CHANGED:
- * 2025-12-28: UX: Disable "Check License" + "Test Connection" until a License Key is saved.                   // CHANGED:
+ * 2026-01-01: CLEAN: Reduce Settings debug.log noise — log failures only (no start/ok chatter).                 // CHANGED:
+ * 2026-01-01: FIX: Make init() + register_settings() idempotent (prevents double hook/registration).          // CHANGED:
+ * 2026-01-01: HARDEN: Sanitize license key by stripping control chars + whitespace (paste-safe).             // CHANGED:
+ * 2026-01-01: FIX: Render Settings page ONLY on admin.php?page=postpress-ai-settings (never admin-post).    // CHANGED:
+ *
+ * 2025-12-28: CLEAN: Remove duplicate submit_button() guard that was repeated inside render_page().           // CHANGED:
+ * 2025-12-28: UX: Disable "Check License" + "Test Connection" until a License Key is saved.                 // CHANGED:
  * 2025-12-28: UX: Disable "Deactivate This Site" when status is known "Not active" (still allowed if Unknown). // CHANGED:
- * 2025-12-28: LOG: Add tight PPA: logs for license actions + connectivity for faster debug.log triage.         // CHANGED:
+ * 2025-12-28: LOG: Add tight PPA: logs for license actions + connectivity for faster debug.log triage.       // CHANGED:
  *
  * 2025-12-28: FIX: Prevent duplicate plan-limit notice by suppressing querystring license notice
- *              when site_limit_reached is true (persistent notice handles it).                    // CHANGED:
+ *              when site_limit_reached is true (persistent notice handles it).                              // CHANGED:
  * 2025-12-28: UX: If last license response shows plan_limit + site_limit_reached, show friendly message
- *              and disable "Activate This Site" (UX only; no enforcement; endpoints unchanged).     // CHANGED:
+ *              and disable "Activate This Site" (UX only; no enforcement; endpoints unchanged).             // CHANGED:
  * 2025-12-28: FIX: Prevent fatal "Call to undefined function submit_button()" by defensively loading
- *              wp-admin/includes/template.php inside render_page() and providing a last-resort shim. // CHANGED:
+ *              wp-admin/includes/template.php inside render_page() and providing a last-resort shim.         // CHANGED:
  *
- * 2025-12-27: FIX: Remove submenu registration from this file; menu.php is the single menu registrar.          // CHANGED:
- *             Settings screen is routed here via ppa_render_settings() include from menu.php.                 // CHANGED:
+ * 2025-12-27: FIX: Remove submenu registration from this file; menu.php is the single menu registrar.        // CHANGED:
+ *             Settings screen is routed here via ppa_render_settings() include from menu.php.               // CHANGED:
  *
- * 2025-11-19: Initial settings screen & connectivity test (Django URL + shared key).                              // CHANGED:
- * 2025-12-25: Add license UI + admin-post handlers to call Django /license/* endpoints (server-side).            // CHANGED:
- * 2025-12-25: HARDEN: Settings screen + actions admin-only (manage_options).                                     // CHANGED:
- * 2025-12-25: UX: Simplify copy for creators; remove technical pipeline language.                                // CHANGED:
- * 2025-12-25: BRAND: Add stable wrapper classes (ppa-admin ppa-settings) for CSS parity with Composer.           // CHANGED:
- * 2025-12-25: CLEAN: Remove inline layout styles; use class hooks for styling later.                             // CHANGED:
- * 2025-12-25: UX: Render fields manually (no duplicate section headings); “grandma-friendly” labels.             // CHANGED:
- * 2025-12-25: FIX: Render notices inside Setup card so they never float outside the frame/grid.                  // CHANGED:
- * 2025-12-25: UX: Hide Server URL + Connection Key from UI; License Key is the only user-facing input.           // CHANGED:
- * 2025-12-25: AUTH: If Connection Key is empty, use License Key for X-PPA-Key (legacy-safe).                     // CHANGED:
- * 2025-12-25: UX GUARDRAILS: Disable Activate until key saved; show Active/Not active badge (pure PHP).           // CHANGED:
- * 2025-12-26: UX HARDEN: Persist "active on this site" locally after successful Activate; clear on Deactivate.    // CHANGED:
- *            (UI convenience only; Django remains authoritative.)                                                  // CHANGED:
+ * 2025-11-19: Initial settings screen & connectivity test (Django URL + shared key).                        // CHANGED:
+ * 2025-12-25: Add license UI + admin-post handlers to call Django /license/* endpoints (server-side).       // CHANGED:
+ * 2025-12-25: HARDEN: Settings screen + actions admin-only (manage_options).                                // CHANGED:
+ * 2025-12-25: UX: Simplify copy for creators; remove technical pipeline language.                           // CHANGED:
+ * 2025-12-25: BRAND: Add stable wrapper classes (ppa-admin ppa-settings) for CSS parity with Composer.      // CHANGED:
+ * 2025-12-25: CLEAN: Remove inline layout styles; use class hooks for styling later.                        // CHANGED:
+ * 2025-12-25: UX: Render fields manually (no duplicate section headings); “grandma-friendly” labels.        // CHANGED:
+ * 2025-12-25: FIX: Render notices inside Setup card so they never float outside the frame/grid.             // CHANGED:
+ * 2025-12-25: UX: Hide Server URL + Connection Key from UI; License Key is the only user-facing input.      // CHANGED:
+ * 2025-12-25: AUTH: If Connection Key is empty, use License Key for X-PPA-Key (legacy-safe).               // CHANGED:
+ * 2025-12-25: UX GUARDRAILS: Disable Activate until key saved; show Active/Not active badge (pure PHP).     // CHANGED:
+ * 2025-12-26: UX HARDEN: Persist "active on this site" locally after successful Activate; clear on Deactivate. // CHANGED:
+ *            (UI convenience only; Django remains authoritative.)                                           // CHANGED:
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -95,6 +100,10 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 		const TRANSIENT_LAST_LIC   = 'ppa_license_last_result';
 		const LAST_LIC_TTL_SECONDS = 10 * MINUTE_IN_SECONDS;
 
+		// CHANGED: Idempotency guards (this file may be included more than once depending on admin bootstrap).
+		private static $booted              = false; // CHANGED:
+		private static $settings_registered = false; // CHANGED:
+
 		/**
 		 * Centralized capability:
 		 * Settings + licensing are admin-only.
@@ -106,6 +115,9 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 		/**
 		 * Tight logger for debug.log triage.
 		 * Always prefixed with "PPA:" so you can grep cleanly.                                     // CHANGED:
+		 *
+		 * IMPORTANT (2026-01-01):
+		 * - Call this ONLY on failures. No "start/ok/http=200" chatter.                            // CHANGED:
 		 *
 		 * @param string $msg
 		 */
@@ -121,6 +133,11 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 		 * Bootstrap hooks.
 		 */
 		public static function init() {
+			if ( self::$booted ) { // CHANGED:
+				return; // CHANGED:
+			} // CHANGED:
+			self::$booted = true; // CHANGED:
+
 			// IMPORTANT: menu.php owns the submenu entry now.                                         // CHANGED:
 			// We only register settings + handlers here.                                               // CHANGED:
 
@@ -150,6 +167,11 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 		 *   but we DO NOT render them in the UI anymore.                                          // CHANGED:
 		 */
 		public static function register_settings() {
+			if ( self::$settings_registered ) { // CHANGED:
+				return; // CHANGED:
+			} // CHANGED:
+			self::$settings_registered = true; // CHANGED:
+
 			// (Legacy) Django URL is still supported (constant/option), but not rendered.          // CHANGED:
 			register_setting(
 				'ppa_settings',
@@ -246,7 +268,14 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 			if ( '' === $value ) {
 				return '';
 			}
-			$value = preg_replace( '/\s+/', '', $value );
+
+			// CHANGED: Strip control characters (invisible paste junk) + whitespace. Keep format permissive.
+			$tmp = preg_replace( '/[\x00-\x1F\x7F]/', '', $value ); // CHANGED:
+			$value = is_string( $tmp ) ? $tmp : $value; // CHANGED:
+
+			$tmp = preg_replace( '/\s+/', '', $value ); // CHANGED:
+			$value = is_string( $tmp ) ? $tmp : $value; // CHANGED:
+
 			if ( strlen( $value ) > 200 ) {
 				$value = substr( $value, 0, 200 );
 			}
@@ -330,11 +359,11 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 		private static function derive_activation_state( $last ) {                               // CHANGED:
 			if ( self::is_active_on_this_site_option() ) {                                       // CHANGED:
 				return 'active';                                                                 // CHANGED:
-			}                                                                                      // CHANGED:
+			}                                                                                     // CHANGED:
 
 			if ( ! is_array( $last ) ) {                                                         // CHANGED:
 				return 'unknown';                                                                // CHANGED:
-			}                                                                                      // CHANGED:
+			}                                                                                     // CHANGED:
 
 			$data = isset( $last['data'] ) && is_array( $last['data'] ) ? $last['data'] : array(); // CHANGED:
 
@@ -352,17 +381,17 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 					$v = $data[ $k ];                                                             // CHANGED:
 					if ( is_bool( $v ) ) {                                                        // CHANGED:
 						return $v ? 'active' : 'inactive';                                        // CHANGED:
-					}                                                                              // CHANGED:
+					}                                                                             // CHANGED:
 					if ( is_string( $v ) ) {                                                      // CHANGED:
 						$vv = strtolower( trim( $v ) );                                           // CHANGED:
 						if ( in_array( $vv, array( 'active', 'activated', 'on', 'enabled' ), true ) ) { // CHANGED:
 							return 'active';                                                     // CHANGED:
-						}                                                                          // CHANGED:
+						}                                                                         // CHANGED:
 						if ( in_array( $vv, array( 'inactive', 'deactivated', 'off', 'disabled' ), true ) ) { // CHANGED:
 							return 'inactive';                                                   // CHANGED:
-						}                                                                          // CHANGED:
-					}                                                                              // CHANGED:
-				}                                                                                  // CHANGED:
+						}                                                                         // CHANGED:
+					}                                                                             // CHANGED:
+				}                                                                                 // CHANGED:
 			}
 
 			if ( isset( $data['active_sites'] ) && is_array( $data['active_sites'] ) ) {          // CHANGED:
@@ -370,8 +399,8 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 				foreach ( $data['active_sites'] as $site ) {                                      // CHANGED:
 					if ( is_string( $site ) && untrailingslashit( $site ) === $home ) {           // CHANGED:
 						return 'active';                                                         // CHANGED:
-					}                                                                              // CHANGED:
-				}                                                                                  // CHANGED:
+					}                                                                             // CHANGED:
+				}                                                                                 // CHANGED:
 				return 'inactive';                                                                // CHANGED:
 			}
 
@@ -499,8 +528,6 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 
 			check_admin_referer( 'ppa-test-connectivity' );
 
-			self::log( 'test_connectivity start' );                                               // CHANGED:
-
 			$base = self::get_django_base_url();
 			$key  = self::resolve_shared_key();
 
@@ -510,7 +537,7 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 			}
 
 			if ( '' === $key ) {
-				self::log( 'test_connectivity fail: missing key' );                               // CHANGED:
+				self::log( 'test_connectivity fail: missing key' );                              // CHANGED:
 				self::redirect_with_test_result( 'error', __( 'Please add your License Key first, then click Save.', 'postpress-ai' ) );
 			}
 
@@ -540,7 +567,7 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 				);
 
 				if ( is_wp_error( $response ) ) {
-					self::log( 'test_connectivity ' . $label . ' wp_error: ' . $response->get_error_message() ); // CHANGED:
+					self::log( 'test_connectivity fail: ' . $label . ' wp_error: ' . $response->get_error_message() ); // CHANGED:
 					$messages[] = sprintf(
 						__( '%1$s failed: %2$s', 'postpress-ai' ),
 						ucfirst( $label ),
@@ -550,10 +577,10 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 				}
 
 				$code = (int) wp_remote_retrieve_response_code( $response );
-				self::log( 'test_connectivity ' . $label . ' http=' . $code );                   // CHANGED:
 				if ( $code >= 200 && $code < 300 ) {
 					$ok_count++;
 				} else {
+					self::log( 'test_connectivity fail: ' . $label . ' http=' . $code );        // CHANGED:
 					$messages[] = sprintf(
 						__( '%1$s returned HTTP %2$d.', 'postpress-ai' ),
 						ucfirst( $label ),
@@ -563,7 +590,7 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 			}
 
 			if ( 2 === $ok_count ) {
-				self::log( 'test_connectivity ok' );                                              // CHANGED:
+				// CHANGED: no success logs — keep debug.log quiet unless something fails.
 				self::redirect_with_test_result(
 					'ok',
 					__( 'Connected! This site can reach PostPress AI.', 'postpress-ai' )
@@ -575,7 +602,7 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 				$msg .= ' ' . implode( ' ', $messages );
 			}
 
-			self::log( 'test_connectivity error: ' . $msg );                                      // CHANGED:
+			self::log( 'test_connectivity failed' );                                             // CHANGED:
 			self::redirect_with_test_result( 'error', $msg );
 		}
 
@@ -602,8 +629,6 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 			}
 
 			check_admin_referer( 'ppa-license-' . $action );
-
-			self::log( 'license_action start: ' . $action );                                      // CHANGED:
 
 			$base = self::get_django_base_url();
 			$key  = self::resolve_shared_key();
@@ -652,12 +677,21 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 			$result = self::normalize_django_response( $response );
 			self::cache_last_license_result( $result );
 
-			// CHANGED: log the normalized result outcome without dumping secrets.
+			// CHANGED: failure-only logging (no success chatter; no secret dumps).
 			$http = ( is_array( $result ) && isset( $result['_http_status'] ) ) ? (int) $result['_http_status'] : 0; // CHANGED:
-			$ok   = ( is_array( $result ) && isset( $result['ok'] ) && true === $result['ok'] ) ? 'true' : 'false';  // CHANGED:
-			self::log( 'license_action result: action=' . $action . ' ok=' . $ok . ' http=' . $http );              // CHANGED:
+			$ok   = ( is_array( $result ) && isset( $result['ok'] ) && true === $result['ok'] ); // CHANGED:
+			if ( ! $ok ) { // CHANGED:
+				$err_code = ''; // CHANGED:
+				if ( is_array( $result ) && isset( $result['error']['code'] ) ) { // CHANGED:
+					$err_code = (string) $result['error']['code']; // CHANGED:
+				} elseif ( is_array( $result ) && isset( $result['error']['type'] ) ) { // CHANGED:
+					$err_code = (string) $result['error']['type']; // CHANGED:
+				} // CHANGED:
+				$err_code = trim( $err_code ); // CHANGED:
+				self::log( 'license_action failed: action=' . $action . ' http=' . $http . ( '' !== $err_code ? ' code=' . $err_code : '' ) ); // CHANGED:
+			} // CHANGED:
 
-			if ( is_array( $result ) && isset( $result['ok'] ) && true === $result['ok'] ) {
+			if ( $ok ) {
 				if ( 'activate' === $action ) {
 					update_option( self::OPT_ACTIVE_SITE, home_url( '/' ), false );
 				} elseif ( 'deactivate' === $action ) {
@@ -970,10 +1004,16 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 		}
 	}
 
+	// Boot hooks (safe/idempotent).
 	PPA_Admin_Settings::init();
 
-	if ( is_admin() && isset( $_GET['page'] ) && $_GET['page'] === 'postpress-ai-settings' && ( ! isset( $GLOBALS['pagenow'] ) || $GLOBALS['pagenow'] !== 'admin-post.php' ) ) { // CHANGED:
-		PPA_Admin_Settings::render_page(); // CHANGED:
+	// CHANGED: Render ONLY on the real settings screen (admin.php). Never render on admin-post (prevents output/redirect issues).
+	if ( is_admin() ) { // CHANGED:
+		global $pagenow; // CHANGED:
+		$page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : ''; // CHANGED:
+		if ( 'admin.php' === $pagenow && 'postpress-ai-settings' === $page ) { // CHANGED:
+			PPA_Admin_Settings::render_page(); // CHANGED:
+		} // CHANGED:
 	} // CHANGED:
 
 }
