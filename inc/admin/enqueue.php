@@ -3,8 +3,9 @@
  * PostPress AI — Admin Enqueue
  *
  * ========= CHANGE LOG =========
- * 2025-12-30 • PREP: Add Testbed per-screen CSS support (admin-testbed.css) with safe fallback to admin.css.          // CHANGED:
- * 2025-12-30 • PREP: window.PPA.cssVer now reflects Composer/Testbed per-screen CSS when present.                    // CHANGED:
+ * 2026-01-01 • FIX: Enqueue Testbed-only CSS when present (admin-testbed.css). Keeps per-screen CSS modular.    # CHANGED:
+ * 2026-01-01 • KEEP: Composer loads only admin-composer.css when present (no admin.css on Composer).           # CHANGED:
+ * 2026-01-01 • KEEP: Settings remains CSS-only and enforces “no admin.css / no JS”.                            # CHANGED:
  *
  * 2025-12-28 • HARDEN: Settings screen JS isolation is now “airtight” by arming a late admin_print_scripts purge.      # CHANGED:
  *              This guarantees Settings is truly CSS-only (no PostPress AI JS can sneak in).                           # CHANGED:
@@ -191,7 +192,7 @@ if (!function_exists('ppa_admin_enqueue')) {
 
             // Purge any PostPress AI styles EXCEPT admin-settings.css (run now + run late).                          // CHANGED:
             $purge_ppai_styles_except_settings = function() use ($rel_path, $admin_settings_css_rel) {                // CHANGED:
-                $st = function_exists('wp_styles') ? wp_styles() : null;                                              // CHANGED:
+                $st = function_exists('wp_styles') ? wp_styles() : null;                                             // CHANGED:
                 if (!$st || empty($st->registered)) {                                                                 // CHANGED:
                     return;                                                                                           // CHANGED:
                 }                                                                                                     // CHANGED:
@@ -216,7 +217,7 @@ if (!function_exists('ppa_admin_enqueue')) {
                 }                                                                                                     // CHANGED:
             };                                                                                                        // CHANGED:
 
-            // CHANGED: Purge ANY PostPress AI scripts on Settings page (CSS-only page).
+            // Purge ANY PostPress AI scripts on Settings page (CSS-only page).                                       // CHANGED:
             $purge_ppai_scripts = function() use ($rel_path) {                                                        // CHANGED:
                 $sc = function_exists('wp_scripts') ? wp_scripts() : null;                                            // CHANGED:
                 if (!$sc || empty($sc->registered)) {                                                                 // CHANGED:
@@ -261,22 +262,19 @@ if (!function_exists('ppa_admin_enqueue')) {
         // NON-SETTINGS PAGES (Composer/Testbed): build shared config + purge + enqueue
         // ---------------------------------------------------------------------
 
-        // ---------------------------------------------------------------------
         // Build shared config (window.PPA) — exposed before admin.js
-        // ---------------------------------------------------------------------
+        $effective_css_ver = $admin_css_ver;                                                                          // CHANGED:
         if ($is_main_ui && file_exists($admin_composer_css_file)) {                                                   // CHANGED:
-            $effective_css_ver = $admin_composer_css_ver;                                                            // CHANGED:
-        } elseif ($is_testbed && file_exists($admin_testbed_css_file)) {                                             // CHANGED:
-            $effective_css_ver = $admin_testbed_css_ver;                                                             // CHANGED:
-        } else {
-            $effective_css_ver = $admin_css_ver;                                                                     // CHANGED:
-        }
+            $effective_css_ver = $admin_composer_css_ver;                                                             // CHANGED:
+        } elseif ($is_testbed && file_exists($admin_testbed_css_file)) {                                              // CHANGED:
+            $effective_css_ver = $admin_testbed_css_ver;                                                              // CHANGED:
+        }                                                                                                             // CHANGED:
 
         $cfg = array(
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'restUrl' => esc_url_raw(rest_url()),
             'page'    => $page_param,
-            'cssVer'  => $effective_css_ver, // CHANGED:
+            'cssVer'  => $effective_css_ver,                                                                          // CHANGED:
             'jsVer'   => $admin_js_ver,
             'wpNonce' => wp_create_nonce('wp_rest'),
         );
@@ -285,13 +283,11 @@ if (!function_exists('ppa_admin_enqueue')) {
         wp_enqueue_script('ppa-admin-config');
         wp_add_inline_script('ppa-admin-config', 'window.PPA = ' . wp_json_encode($cfg) . ';', 'before');
 
-        // ---------------------------------------------------------------------
         // Aggressive purge: dequeue/deregister any previously registered/enqueued
         // handles whose src matches our plugin assets. Ensures our filemtime ver wins.
-        // ---------------------------------------------------------------------
         $rel_path = 'postpress-ai/';
 
-        $purge_by_rel = function($needle, $type) use ($rel_path) {                                                  // (kept)
+        $purge_by_rel = function($needle, $type) use ($rel_path) {                                                    // (kept)
             if ($type === 'script') {
                 $sc = wp_scripts();
                 if ($sc && !empty($sc->registered)) {
@@ -343,68 +339,65 @@ if (!function_exists('ppa_admin_enqueue')) {
         $purge_by_rel($testbed_js_rel,             'script');                                                        // (kept)
         $purge_by_rel($admin_spinner_rel,          'script');                                                        // CHANGED:
 
-        // ---------------------------------------------------------------------
         // Enqueue assets
-        // ---------------------------------------------------------------------
-
-        // Composer + Testbed
         if ($is_main_ui || $is_testbed) {
-            // CSS (Composer/Testbed only) — once per-screen CSS exists, do NOT load admin.css on that screen.       // CHANGED:
+
+            // CSS — per-screen first, fallback to legacy admin.css
             if ($is_main_ui && file_exists($admin_composer_css_file)) {                                              // CHANGED:
                 wp_register_style('ppa-admin-composer-css', $admin_composer_css_url, array(), $admin_composer_css_ver, 'all'); // CHANGED:
                 wp_enqueue_style('ppa-admin-composer-css');                                                          // CHANGED:
             } elseif ($is_testbed && file_exists($admin_testbed_css_file)) {                                         // CHANGED:
-                wp_register_style('ppa-admin-testbed-css', $admin_testbed_css_url, array(), $admin_testbed_css_ver, 'all'); // CHANGED:
+                wp_register_style('ppa-admin-testbed-css', $admin_testbed_css_url, array(), $admin_testbed_css_ver, 'all');   // CHANGED:
                 wp_enqueue_style('ppa-admin-testbed-css');                                                           // CHANGED:
             } else {
                 wp_register_style('ppa-admin-css', $admin_css_url, array(), $admin_css_ver, 'all');
                 wp_enqueue_style('ppa-admin-css');
             }
 
-            // JS core helpers — must load after config so window.PPA is present                           // CHANGED:
-            wp_register_script(                                                                            // CHANGED:
-                'ppa-admin-core',                                                                          // CHANGED:
-                $admin_core_js_url,                                                                        // CHANGED:
-                array('jquery', 'ppa-admin-config'),                                                       // CHANGED:
-                $admin_core_js_ver,                                                                        // CHANGED:
-                true                                                                                       // CHANGED:
-            );                                                                                             // CHANGED:
-            wp_enqueue_script('ppa-admin-core');                                                           // CHANGED:
+            // JS core helpers — must load after config so window.PPA is present
+            wp_register_script(
+                'ppa-admin-core',
+                $admin_core_js_url,
+                array('jquery', 'ppa-admin-config'),
+                $admin_core_js_ver,
+                true
+            );
+            wp_enqueue_script('ppa-admin-core');
 
-            // Modular scripts (foundation) — register always; enqueue only when non-empty.                 // CHANGED:
-            $active_modules = array();                                                                     // CHANGED:
-            $maybe_enqueue = function($handle, $url, $deps, $ver, $file) use (&$active_modules) {          // CHANGED:
-                wp_register_script($handle, $url, $deps, $ver, true);                                       // CHANGED:
-                if ($file && file_exists($file) && filesize($file) > 0) {                                   // CHANGED:
-                    $active_modules[] = $handle;                                                            // CHANGED:
-                    wp_enqueue_script($handle);                                                             // CHANGED:
-                }                                                                                           // CHANGED:
-            };                                                                                              // CHANGED:
-            $maybe_enqueue('ppa-admin-api',      $admin_api_js_url,      array('jquery','ppa-admin-config','ppa-admin-core'), $admin_api_js_ver,      $admin_api_js_file);      // CHANGED:
-            $maybe_enqueue('ppa-admin-payloads', $admin_payloads_js_url, array('jquery','ppa-admin-config','ppa-admin-core'), $admin_payloads_js_ver, $admin_payloads_js_file); // CHANGED:
-            $maybe_enqueue('ppa-admin-notices',  $admin_notices_js_url,  array('jquery','ppa-admin-config','ppa-admin-core'), $admin_notices_js_ver,  $admin_notices_js_file);  // CHANGED:
+            // Modular scripts (foundation) — register always; enqueue only when non-empty.
+            $active_modules = array();
+            $maybe_enqueue = function($handle, $url, $deps, $ver, $file) use (&$active_modules) {
+                wp_register_script($handle, $url, $deps, $ver, true);
+                if ($file && file_exists($file) && filesize($file) > 0) {
+                    $active_modules[] = $handle;
+                    wp_enqueue_script($handle);
+                }
+            };
+            $maybe_enqueue('ppa-admin-api',      $admin_api_js_url,      array('jquery','ppa-admin-config','ppa-admin-core'), $admin_api_js_ver,      $admin_api_js_file);
+            $maybe_enqueue('ppa-admin-payloads', $admin_payloads_js_url, array('jquery','ppa-admin-config','ppa-admin-core'), $admin_payloads_js_ver, $admin_payloads_js_file);
+            $maybe_enqueue('ppa-admin-notices',  $admin_notices_js_url,  array('jquery','ppa-admin-config','ppa-admin-core'), $admin_notices_js_ver,  $admin_notices_js_file);
 
-            // JS editor helpers — after core, before main admin.js                                        // CHANGED:
-            wp_register_script(                                                                            // CHANGED:
-                'ppa-admin-editor',                                                                        // CHANGED:
-                $admin_editor_js_url,                                                                      // CHANGED:
-                array('jquery', 'ppa-admin-config', 'ppa-admin-core'),                                     // CHANGED:
-                $admin_editor_js_ver,                                                                      // CHANGED:
-                true                                                                                       // CHANGED:
-            );                                                                                             // CHANGED:
-            wp_enqueue_script('ppa-admin-editor');                                                         // CHANGED:
+            // JS editor helpers — after core, before main admin.js
+            wp_register_script(
+                'ppa-admin-editor',
+                $admin_editor_js_url,
+                array('jquery', 'ppa-admin-config', 'ppa-admin-core'),
+                $admin_editor_js_ver,
+                true
+            );
+            wp_enqueue_script('ppa-admin-editor');
 
-            // Modular scripts (composer) — after editor helpers; enqueue only when non-empty.              // CHANGED:
-            $maybe_enqueue('ppa-admin-generate-view', $admin_generate_view_js_url, array('jquery','ppa-admin-config','ppa-admin-core','ppa-admin-editor'), $admin_generate_view_js_ver, $admin_generate_view_js_file); // CHANGED:
-            $maybe_enqueue('ppa-admin-composer-preview',  $admin_comp_preview_js_url,  array('jquery','ppa-admin-config','ppa-admin-core','ppa-admin-editor'), $admin_comp_preview_js_ver,  $admin_comp_preview_js_file);  // CHANGED:
-            $maybe_enqueue('ppa-admin-composer-generate', $admin_comp_generate_js_url, array('jquery','ppa-admin-config','ppa-admin-core','ppa-admin-editor'), $admin_comp_generate_js_ver, $admin_comp_generate_js_file); // CHANGED:
-            $maybe_enqueue('ppa-admin-composer-store',    $admin_comp_store_js_url,    array('jquery','ppa-admin-config','ppa-admin-core','ppa-admin-editor'), $admin_comp_store_js_ver,    $admin_comp_store_js_file);    // CHANGED:
+            // Modular scripts (composer) — after editor helpers; enqueue only when non-empty.
+            $maybe_enqueue('ppa-admin-generate-view',     $admin_generate_view_js_url, array('jquery','ppa-admin-config','ppa-admin-core','ppa-admin-editor'), $admin_generate_view_js_ver, $admin_generate_view_js_file);
+            $maybe_enqueue('ppa-admin-composer-preview',  $admin_comp_preview_js_url,  array('jquery','ppa-admin-config','ppa-admin-core','ppa-admin-editor'), $admin_comp_preview_js_ver,  $admin_comp_preview_js_file);
+            $maybe_enqueue('ppa-admin-composer-generate', $admin_comp_generate_js_url, array('jquery','ppa-admin-config','ppa-admin-core','ppa-admin-editor'), $admin_comp_generate_js_ver, $admin_comp_generate_js_file);
+            $maybe_enqueue('ppa-admin-composer-store',    $admin_comp_store_js_url,    array('jquery','ppa-admin-config','ppa-admin-core','ppa-admin-editor'), $admin_comp_store_js_ver,    $admin_comp_store_js_file);
 
-            // JS — depend on config + core + editor so namespaces exist before admin.js runs              // CHANGED:
+            // JS — depend on config + core + editor so namespaces exist before admin.js runs
             wp_register_script(
                 'ppa-admin',
                 $admin_js_url,
-                array_merge(array('jquery', 'ppa-admin-config', 'ppa-admin-core', 'ppa-admin-editor'), $active_modules), // CHANGED:
+                array_merge(array('jquery', 'ppa-admin-config', 'ppa-admin-core', 'ppa-admin-editor'), $active_modules),
                 $admin_js_ver,
                 true
             );
@@ -438,11 +431,11 @@ if (!function_exists('ppa_admin_enqueue')) {
     }
 }
 
-// Hook (guard against accidental double-hooking in edge includes)                                  // CHANGED:
-if (function_exists('add_action') && function_exists('has_action')) {                               // CHANGED:
-    if (!has_action('admin_enqueue_scripts', 'ppa_admin_enqueue')) {                                // CHANGED:
-        add_action('admin_enqueue_scripts', 'ppa_admin_enqueue', 10, 1);                            // CHANGED:
-    }                                                                                               // CHANGED:
+// Hook (guard against accidental double-hooking in edge includes)
+if (function_exists('add_action') && function_exists('has_action')) {
+    if (!has_action('admin_enqueue_scripts', 'ppa_admin_enqueue')) {
+        add_action('admin_enqueue_scripts', 'ppa_admin_enqueue', 10, 1);
+    }
 } else {
-    add_action('admin_enqueue_scripts', 'ppa_admin_enqueue', 10, 1);                                // CHANGED:
+    add_action('admin_enqueue_scripts', 'ppa_admin_enqueue', 10, 1);
 }
