@@ -5,17 +5,20 @@
  *
  * Scope:
  *   body.toplevel_page_postpress-ai …
- *   (Confirmed via document.body.className containing: "toplevel_page_postpress-ai")
+ *   (Confirmed via body class containing: "toplevel_page_postpress-ai")
  *
  * Purpose:
  *   Composer screen ONLY:
  *   - Dark Composer UI styling
- *   - View Draft pill CTA styling
- *   - Notices, panels, form controls
+ *   - Proper two-panel layout (form + preview)
+ *   - Form controls + buttons
+ *   - Preview typography
+ *   - View Draft pill CTA styling (when it exists)
  *
  * ========= CHANGE LOG =========
- * 2026-01-01 — CLEAN: Composer-only CSS finalized + safely scoped to body.toplevel_page_postpress-ai.       /* CHANGED */
- * 2026-01-01 — FIX: View Draft CTA styles live here (NOT in admin.css).                                    /* CHANGED */
+ * 2026-01-01 — FIX: Style the REAL Composer markup (.ppa-form-panel/.ppa-preview-panel/.ppa-inline/.ppa-btn). # CHANGED:
+ * 2026-01-01 — FIX: Headings + buttons now match the actual DOM (no more .wrap > h1 / .button mismatch).      # CHANGED:
+ * 2026-01-01 — KEEP: Composer-only scoping (no global bleed).                                                  # CHANGED:
  */
 
 body.toplevel_page_postpress-ai{
@@ -23,281 +26,322 @@ body.toplevel_page_postpress-ai{
   --ppa-panel:#1c1c1c;
   --ppa-border:rgba(255,255,255,.10);
   --ppa-text:#f5f5f5;
+  --ppa-muted:#cfcfcf;
   --ppa-accent:#ff6c00;
+
+  --ppa-field:#2b2b2b;
+  --ppa-field-border:#333;
 }
 
-/* Keep WordPress admin chrome readable against the dark Composer panel */
+/* Give WP admin content a little breathing room */
 body.toplevel_page_postpress-ai #wpbody-content{
   padding-bottom: 24px;
 }
 
-/* Composer wrapper */
-body.toplevel_page_postpress-ai #ppa-composer{
-  background:var(--ppa-bg);
-  color:var(--ppa-text);
-}
+/* Composer root (this is the grid container) */
+body.toplevel_page_postpress-ai #ppa-composer.wrap.ppa-composer-wrap{
+  max-width: 1180px;
+  margin-top: 18px;
 
-/* WP .wrap container polish */
-body.toplevel_page_postpress-ai .wrap{
-  max-width:1180px;
-}
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
 
-/* Two-panel layout */
-body.toplevel_page_postpress-ai .ppa-composer-wrap{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:24px;
-  color:var(--ppa-text);
-  background-color:var(--ppa-bg);
-  padding:24px;
-  border-radius:12px;
-  box-sizing:border-box;
+  background: var(--ppa-bg);
+  color: var(--ppa-text);
+
+  padding: 24px;
+  border-radius: 14px;
+  box-sizing: border-box;
+
+  box-shadow: 0 10px 28px rgba(0,0,0,.30);
 }
 
 /* Panels */
-body.toplevel_page_postpress-ai .ppa-form-panel,
-body.toplevel_page_postpress-ai .ppa-preview-panel{
-  background:var(--ppa-panel);
-  border-radius:12px;
-  padding:24px;
-  box-shadow:0 2px 10px rgba(0,0,0,.35);
+body.toplevel_page_postpress-ai #ppa-composer .ppa-form-panel,
+body.toplevel_page_postpress-ai #ppa-composer .ppa-preview-panel{
+  background: var(--ppa-panel);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 14px;
+  padding: 22px;
+  box-sizing: border-box;
 }
 
-/* subtle vertical divider between form and preview */
-@media (min-width:901px){
-  body.toplevel_page_postpress-ai .ppa-form-panel{
-    border-right:1px solid #2a2a2a;
-    margin-right:12px;
-  }
+/* Titles */
+body.toplevel_page_postpress-ai #ppa-composer .ppa-form-panel h1,
+body.toplevel_page_postpress-ai #ppa-composer .ppa-preview-panel h1{
+  color: var(--ppa-accent);
+  margin: 0 0 10px;
+  font-weight: 900;
 }
 
-/* Preview panel scrolling/typography */
-body.toplevel_page_postpress-ai .ppa-preview-panel{
-  overflow-y:auto;
-  max-height:80vh;
-  font-size:15px;
-  line-height:1.7;
-  color:#e0e0e0;
+/* Signed-in hint + helper copy */
+body.toplevel_page_postpress-ai #ppa-composer .ppa-hint{
+  margin: 0 0 14px;
+  color: var(--ppa-muted);
+  font-size: 13px;
 }
 
-/* Headings */
-body.toplevel_page_postpress-ai .ppa-form-panel h1,
-body.toplevel_page_postpress-ai .ppa-composer-wrap h1{
-  color:var(--ppa-accent);
-  margin-top:0;
+/* Live notice region: don’t take up space when empty */
+body.toplevel_page_postpress-ai #ppa-toolbar-msg.ppa-notice{
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.06);
+  color: #ffffff;
+  font-size: 13px;
+  line-height: 1.35;
+  min-height: 0;
+}
+body.toplevel_page_postpress-ai #ppa-toolbar-msg.ppa-notice:empty{
+  display: none;
 }
 
-body.toplevel_page_postpress-ai .ppa-preview-panel h2,
-body.toplevel_page_postpress-ai .ppa-preview-panel h3,
-body.toplevel_page_postpress-ai .ppa-preview-panel h4{
-  color:var(--ppa-accent);
-  margin-top:1.2em;
-  margin-bottom:.4em;
-  font-weight:700;
+/* Form groups */
+body.toplevel_page_postpress-ai #ppa-composer .ppa-form-group{
+  margin-top: 14px;
 }
 
-body.toplevel_page_postpress-ai .ppa-preview-panel p{margin-bottom:1em;}
-body.toplevel_page_postpress-ai .ppa-preview-panel strong{color:#fff;font-weight:700;}
-body.toplevel_page_postpress-ai .ppa-preview-panel em{color:#f5f5f5;font-style:italic;}
-body.toplevel_page_postpress-ai .ppa-preview-panel ul,
-body.toplevel_page_postpress-ai .ppa-preview-panel ol{
-  margin-left:24px;
-  padding-left:0;
-  color:#d0d0d0;
-}
-body.toplevel_page_postpress-ai .ppa-preview-panel li{margin-bottom:6px;}
-body.toplevel_page_postpress-ai .ppa-preview-panel a{color:#ff8126;text-decoration:underline;}
-body.toplevel_page_postpress-ai .ppa-preview-panel a:hover{color:#ffa45b;}
-body.toplevel_page_postpress-ai .ppa-preview-panel hr{
-  border:0;
-  border-top:1px solid #333;
-  margin:1.5em 0;
+body.toplevel_page_postpress-ai #ppa-composer label{
+  display: block;
+  margin: 0 0 6px;
+  font-weight: 800;
+  color: #ffffff;
 }
 
-/* Scrollbars */
-body.toplevel_page_postpress-ai .ppa-preview-panel::-webkit-scrollbar{width:8px;}
-body.toplevel_page_postpress-ai .ppa-preview-panel::-webkit-scrollbar-thumb{background-color:#2b2b2b;border-radius:8px;}
-body.toplevel_page_postpress-ai .ppa-preview-panel::-webkit-scrollbar-thumb:hover{background-color:#3a3a3a;}
-
-/* Subhead helper copy */
-body.toplevel_page_postpress-ai .ppa-subhead{
-  margin-bottom:12px;
-  font-size:14px;
-  color:#ccc;
+/* Inline row: Genre / Tone / Word Count */
+body.toplevel_page_postpress-ai #ppa-composer .ppa-inline{
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 14px;
+  margin-top: 10px;
 }
 
-/* Forms */
-body.toplevel_page_postpress-ai .ppa-form-group{margin-top:16px;}
+/* Inputs */
+body.toplevel_page_postpress-ai #ppa-composer input[type="text"],
+body.toplevel_page_postpress-ai #ppa-composer input[type="number"],
+body.toplevel_page_postpress-ai #ppa-composer textarea,
+body.toplevel_page_postpress-ai #ppa-composer select{
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 
-body.toplevel_page_postpress-ai .ppa-form-panel label{
-  display:block;
-  margin-top:16px;
-  font-weight:600;
-  color:#fff;
+  margin: 0;
+  padding: 10px 12px;
+
+  border-radius: 10px;
+  border: 1px solid var(--ppa-field-border);
+
+  background: var(--ppa-field);
+  color: #ffffff;
+
+  font-size: 14px;
 }
 
-body.toplevel_page_postpress-ai .ppa-form-panel input,
-body.toplevel_page_postpress-ai .ppa-form-panel select,
-body.toplevel_page_postpress-ai .ppa-form-panel textarea{
-  width:100%;
-  margin-top:6px;
-  padding:10px 12px;
-  border-radius:6px;
-  border:1px solid #333;
-  background:#2b2b2b;
-  color:#fff;
-  font-size:14px;
+/* Textareas */
+body.toplevel_page_postpress-ai #ppa-composer textarea{
+  min-height: 140px;
+  line-height: 1.35;
+  resize: vertical;
 }
 
-body.toplevel_page_postpress-ai .ppa-form-panel input:focus,
-body.toplevel_page_postpress-ai .ppa-form-panel select:focus,
-body.toplevel_page_postpress-ai .ppa-form-panel textarea:focus{
-  outline:none;
-  border-color:var(--ppa-accent);
-  box-shadow:0 0 0 1px var(--ppa-accent);
+/* Focus */
+body.toplevel_page_postpress-ai #ppa-composer input:focus,
+body.toplevel_page_postpress-ai #ppa-composer select:focus,
+body.toplevel_page_postpress-ai #ppa-composer textarea:focus{
+  outline: none;
+  border-color: var(--ppa-accent);
+  box-shadow: 0 0 0 1px var(--ppa-accent);
 }
 
-/* Dropdown chevron + padding (brand orange) */
-body.toplevel_page_postpress-ai .ppa-form-panel select{
-  color:#f5f5f5;
-  background-color:#2b2b2b;
-  border:1px solid #444;
-  appearance:none;
-  -webkit-appearance:none;
-  -moz-appearance:none;
-  background-image:url("data:image/svg+xml;utf8,<svg fill='%23ff6c00' height='12' viewBox='0 0 24 24' width='12' xmlns='http://www.w3.org/2000/svg'><path d='M7 10l5 5 5-5z'/></svg>");
-  background-repeat:no-repeat;
-  background-position:right 10px center;
-  background-size:12px;
-  padding-right:28px;
+/* Dropdown chevron + selected padding standard */
+body.toplevel_page_postpress-ai #ppa-composer select{
+  color: #f5f5f5;
+  background-color: var(--ppa-field);
+  border: 1px solid #444;
+
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+
+  background-image: url("data:image/svg+xml;utf8,<svg fill='%23ff6c00' height='12' viewBox='0 0 24 24' width='12' xmlns='http://www.w3.org/2000/svg'><path d='M7 10l5 5 5-5z'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px;
+
+  padding: 0em 0.75rem;  /* requested standard */
+  padding-right: 34px;
+  height: 46px;
 }
 
-body.toplevel_page_postpress-ai .ppa-form-panel select option{
-  color:#fff;
-  background-color:#1c1c1c;
+body.toplevel_page_postpress-ai #ppa-composer select option{
+  color: #fff;
+  background-color: #1c1c1c;
 }
 
-/* Buttons */
-body.toplevel_page_postpress-ai .ppa-actions{
-  margin-top:24px;
-  display:flex;
-  gap:12px;
-  flex-wrap:wrap;
+/* Advanced box */
+body.toplevel_page_postpress-ai #ppa-composer details.ppa-advanced{
+  margin-top: 14px;
+  border-top: 1px solid rgba(255,255,255,.08);
+  padding-top: 12px;
 }
 
-body.toplevel_page_postpress-ai .ppa-btn{
-  padding:10px 18px;
-  border-radius:6px;
-  cursor:pointer;
-  font-weight:600;
-  border:none;
-  transition:background .2s ease;
+body.toplevel_page_postpress-ai #ppa-composer details.ppa-advanced > summary{
+  cursor: pointer;
+  color: #eaeaea;
+  font-weight: 900;
+  margin: 0 0 10px;
 }
 
-body.toplevel_page_postpress-ai .ppa-btn-primary{background:var(--ppa-accent);color:#fff;}
-body.toplevel_page_postpress-ai .ppa-btn-primary:hover{background:#ff8126;}
-
-body.toplevel_page_postpress-ai .ppa-btn-secondary{
-  background:#2b2b2b;
-  color:#fff;
-  border:1px solid #333;
-}
-body.toplevel_page_postpress-ai .ppa-btn-secondary:hover{background:#3a3a3a;}
-
-/* Busy/disabled (supports WP .button as well) */
-body.toplevel_page_postpress-ai #ppa-composer .button[disabled],
-body.toplevel_page_postpress-ai #ppa-composer .button[aria-busy="true"],
-body.toplevel_page_postpress-ai .ppa-btn[disabled],
-body.toplevel_page_postpress-ai .ppa-btn[aria-busy="true"]{
-  opacity:.6;
-  cursor:not-allowed;
-  pointer-events:none;
-  position:relative;
-}
-
-body.toplevel_page_postpress-ai #ppa-composer .button-primary[aria-busy="true"]::after,
-body.toplevel_page_postpress-ai .ppa-btn.ppa-btn-primary[aria-busy="true"]::after{
-  content:'…';
-  position:absolute;
-  right:10px;
-  top:50%;
-  transform:translateY(-50%);
-  font-weight:700;
-}
-
-/* Notices */
-body.toplevel_page_postpress-ai .ppa-notice{
-  margin-top:10px;
-  padding:10px 12px;
-  border-radius:6px;
-  line-height:1.35;
-  font-size:13px;
-  background:rgba(255,255,255,.06);
-  color:#ffffff;
-  border:1px solid rgba(255,255,255,.12);
-  opacity:.95;
-  animation:ppaFadeIn .35s ease-in-out;
-}
-
-body.toplevel_page_postpress-ai .ppa-notice-success{background:rgba(16,185,129,.15);border-color:rgba(16,185,129,.35);color:#d1fae5;}
-body.toplevel_page_postpress-ai .ppa-notice-error{background:rgba(239,68,68,.18);border-color:rgba(239,68,68,.40);color:#fee2e2;}
-body.toplevel_page_postpress-ai .ppa-notice-warn{background:rgba(255,108,0,.20);border-color:rgba(255,108,0,.40);color:#fff7ed;}
-body.toplevel_page_postpress-ai .ppa-notice-info{background:rgba(59,130,246,.18);border-color:rgba(59,130,246,.40);color:#dbeafe;}
-
-@keyframes ppaFadeIn{
-  from{opacity:0;transform:translateY(4px);}
-  to{opacity:1;transform:translateY(0);}
-}
-
-/* Preview re-render target */
-body.toplevel_page_postpress-ai #ppa-preview-body{
-  animation:ppaFadeIn .3s ease-in-out;
-}
-
-/* ------------------------------------------------------------
-   View Draft (Composer-only CTA)
-   ------------------------------------------------------------ */
-
-body.toplevel_page_postpress-ai #ppa-view-draft-wrap{
-  margin-top: 12px;
+/* Actions */
+body.toplevel_page_postpress-ai #ppa-composer .ppa-actions{
+  margin-top: 18px;
   display: flex;
-  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 10px;
   align-items: center;
 }
 
+/* Plugin buttons (your real buttons are .ppa-btn) */
+body.toplevel_page_postpress-ai #ppa-composer .ppa-btn{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 10px 16px;
+  border-radius: 12px;
+
+  border: 1px solid rgba(255,255,255,.12);
+  background: #2b2b2b;
+  color: #ffffff;
+
+  font-weight: 900;
+  cursor: pointer;
+
+  transition: background .15s ease, transform .05s ease;
+}
+
+body.toplevel_page_postpress-ai #ppa-composer .ppa-btn:hover{
+  background: #3a3a3a;
+}
+
+body.toplevel_page_postpress-ai #ppa-composer .ppa-btn:active{
+  transform: translateY(1px);
+}
+
+/* Primary (orange) */
+body.toplevel_page_postpress-ai #ppa-composer .ppa-btn.ppa-btn-primary{
+  background: var(--ppa-accent);
+  border-color: var(--ppa-accent);
+  color: #ffffff;
+}
+
+body.toplevel_page_postpress-ai #ppa-composer .ppa-btn.ppa-btn-primary:hover{
+  background: #ff8126;
+  border-color: #ff8126;
+}
+
+/* Note text beside buttons */
+body.toplevel_page_postpress-ai #ppa-composer .ppa-note{
+  display: block;
+  flex: 1 1 100%;
+  margin-top: 8px;
+
+  color: var(--ppa-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+/* Preview panel */
+body.toplevel_page_postpress-ai #ppa-composer .ppa-preview-panel{
+  position: relative;
+  max-height: calc(100vh - 200px);
+  overflow: auto;
+}
+
+/* Preview box */
+body.toplevel_page_postpress-ai #ppa-preview-pane{
+  background: rgba(255,255,255,.02);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 12px;
+  padding: 14px 16px;
+  color: #eaeaea;
+}
+
+/* Preview typography */
+body.toplevel_page_postpress-ai #ppa-preview-pane h2,
+body.toplevel_page_postpress-ai #ppa-preview-pane h3,
+body.toplevel_page_postpress-ai #ppa-preview-pane h4{
+  color: var(--ppa-accent);
+  margin-top: 1.1em;
+  margin-bottom: .35em;
+  font-weight: 900;
+}
+
+body.toplevel_page_postpress-ai #ppa-preview-pane p{
+  margin: 0 0 12px;
+  line-height: 1.7;
+}
+
+body.toplevel_page_postpress-ai #ppa-preview-pane ul,
+body.toplevel_page_postpress-ai #ppa-preview-pane ol{
+  margin: 10px 0 12px 18px;
+}
+
+body.toplevel_page_postpress-ai #ppa-preview-pane a{
+  color: #ff8126;
+  text-decoration: underline;
+}
+body.toplevel_page_postpress-ai #ppa-preview-pane a:hover{
+  color: #ffa45b;
+}
+
+/* View Draft CTA (shows after Save Draft, if markup exists) */
+body.toplevel_page_postpress-ai #ppa-view-draft-wrap{
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
 body.toplevel_page_postpress-ai a#ppa-view-draft-link{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  gap:8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 
   padding: 10px 16px;
   border-radius: 999px;
-  background: var(--ppa-accent);
-  color: #ffffff;
-  font-weight: 900;
-  text-decoration: none;
 
-  border: 1px solid rgba(0,0,0,0.0);
-  box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+  background: var(--ppa-accent);
+  color: #ffffff !important;
+  font-weight: 900;
+
+  text-decoration: none !important;
+  border: 1px solid rgba(0,0,0,0);
+  box-shadow: 0 6px 18px rgba(0,0,0,.35);
 }
 
 body.toplevel_page_postpress-ai a#ppa-view-draft-link:hover{
-  background:#ff8126;
-  color:#ffffff;
+  background: #ff8126;
 }
 
 body.toplevel_page_postpress-ai a#ppa-view-draft-link:focus{
   outline: none;
-  box-shadow: 0 0 0 2px rgba(255,108,0,0.65), 0 6px 18px rgba(0,0,0,0.35);
+  box-shadow: 0 0 0 2px rgba(255,108,0,.65), 0 6px 18px rgba(0,0,0,.35);
 }
 
 /* Responsive */
-@media (max-width:900px){
-  body.toplevel_page_postpress-ai .ppa-composer-wrap{
-    grid-template-columns:1fr;
+@media (max-width: 980px){
+  body.toplevel_page_postpress-ai #ppa-composer.wrap.ppa-composer-wrap{
+    grid-template-columns: 1fr;
   }
-  body.toplevel_page_postpress-ai .ppa-preview-panel{
-    max-height:none;
+
+  body.toplevel_page_postpress-ai #ppa-composer .ppa-inline{
+    grid-template-columns: 1fr;
+  }
+
+  body.toplevel_page_postpress-ai #ppa-composer .ppa-preview-panel{
+    max-height: none;
   }
 }

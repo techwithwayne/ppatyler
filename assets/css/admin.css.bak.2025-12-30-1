@@ -1,0 +1,432 @@
+/* ============================================================
+   PostPress AI — Admin UI Styles
+   File: /assets/css/admin.css
+
+   ========= CHANGE LOG =========
+   2025-11-10 — Dedupe notice/button blocks; add .ppa-testbed-wrap; generic .ppa-notice
+                variants; keep brand tokens; readability polish.                         # CHANGED:
+   2025-11-10 — FIX: remove nested comment markers from header to prevent CSS breakage.   # CHANGED:
+   2025-10-19 — Added toolbar notice styles and busy-state button styling.
+   ============================================================ */
+
+:root{
+  --ppa-bg:#121212;
+  --ppa-panel:#1c1c1c;
+  --ppa-border:rgba(255,255,255,.10);
+  --ppa-text:#f5f5f5;
+  --ppa-accent:#ff6c00;
+}
+
+/* =========================
+   COMPOSER / TESTBED BASE UI
+   ========================= */
+
+#ppa-composer{background:var(--ppa-bg);color:var(--ppa-text);}
+
+.ppa-composer-wrap{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:24px;
+  color:var(--ppa-text);
+  background-color:var(--ppa-bg);
+  padding:24px;
+  border-radius:12px;
+  box-sizing:border-box;
+}
+
+/* Testbed wrapper (same look) */
+.ppa-testbed-wrap{
+  background:var(--ppa-bg);
+  color:var(--ppa-text);
+  padding:24px;
+  border-radius:12px;
+  box-sizing:border-box;
+}
+
+/* Panels */
+.ppa-form-panel,
+.ppa-preview-panel{
+  background:var(--ppa-panel);
+  border-radius:12px;
+  padding:24px;
+  box-shadow:0 2px 10px rgba(0,0,0,.35);
+}
+
+.ppa-preview-panel{
+  overflow-y:auto;
+  max-height:80vh;
+  font-size:15px;
+  line-height:1.7;
+  color:#e0e0e0;
+}
+
+/* subtle vertical divider between form and preview */
+@media (min-width:901px){
+  .ppa-form-panel{
+    border-right:1px solid #2a2a2a;
+    margin-right:12px;
+  }
+}
+
+/* Typography */
+.ppa-form-panel h1,
+.ppa-composer-wrap h1,
+.ppa-testbed-wrap h1{
+  color:var(--ppa-accent);
+  margin-top:0;
+}
+
+pre.ppa-outline{
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+}
+
+.ppa-preview-panel h2,
+.ppa-preview-panel h3,
+.ppa-preview-panel h4{
+  color:var(--ppa-accent);
+  margin-top:1.2em;
+  margin-bottom:.4em;
+  font-weight:700;
+}
+
+.ppa-preview-panel p{margin-bottom:1em;}
+.ppa-preview-panel strong{color:#fff;font-weight:700;}
+.ppa-preview-panel em{color:#f5f5f5;font-style:italic;}
+.ppa-preview-panel ul,
+.ppa-preview-panel ol{margin-left:24px;padding-left:0;color:#d0d0d0;}
+.ppa-preview-panel li{margin-bottom:6px;}
+.ppa-preview-panel a{color:#ff8126;text-decoration:underline;}
+.ppa-preview-panel a:hover{color:#ffa45b;}
+.ppa-preview-panel hr{border:0;border-top:1px solid #333;margin:1.5em 0;}
+
+/* Make scrollbars subtle */
+.ppa-preview-panel::-webkit-scrollbar{width:8px;}
+.ppa-preview-panel::-webkit-scrollbar-thumb{background-color:#2b2b2b;border-radius:8px;}
+.ppa-preview-panel::-webkit-scrollbar-thumb:hover{background-color:#3a3a3a;}
+
+/* Forms */
+.ppa-subhead{margin-bottom:12px;font-size:14px;color:#ccc;}
+
+.ppa-form-group{margin-top:16px;}
+
+.ppa-form-panel label{
+  display:block;
+  margin-top:16px;
+  font-weight:600;
+  color:#fff;
+}
+
+.ppa-form-panel input,
+.ppa-form-panel select,
+.ppa-form-panel textarea,
+.ppa-testbed-wrap input,
+.ppa-testbed-wrap select,
+.ppa-testbed-wrap textarea{
+  width:100%;
+  margin-top:6px;
+  padding:10px 12px;
+  border-radius:6px;
+  border:1px solid #333;
+  background:#2b2b2b;
+  color:#fff;
+  font-size:14px;
+}
+
+.ppa-form-panel input:focus,
+.ppa-form-panel select:focus,
+.ppa-form-panel textarea:focus,
+.ppa-testbed-wrap input:focus,
+.ppa-testbed-wrap select:focus,
+.ppa-testbed-wrap textarea:focus{
+  outline:none;
+  border-color:var(--ppa-accent);
+  box-shadow:0 0 0 1px var(--ppa-accent);
+}
+
+/* Dropdown (select) appearance fix for dark theme */
+.ppa-form-panel select,
+.ppa-testbed-wrap select{
+  color:#f5f5f5;
+  background-color:#2b2b2b;
+  border:1px solid #444;
+  appearance:none;
+  -webkit-appearance:none;
+  -moz-appearance:none;
+  background-image:url("data:image/svg+xml;utf8,<svg fill='%23ff6c00' height='12' viewBox='0 0 24 24' width='12' xmlns='http://www.w3.org/2000/svg'><path d='M7 10l5 5 5-5z'/></svg>");
+  background-repeat:no-repeat;
+  background-position:right 10px center;
+  background-size:12px;
+  padding-right:28px;
+}
+
+.ppa-form-panel select:focus,
+.ppa-testbed-wrap select:focus{
+  color:var(--ppa-accent);
+  border-color:var(--ppa-accent);
+  outline:none;
+  box-shadow:0 0 0 1px var(--ppa-accent);
+}
+
+/* Options dropdown colors */
+.ppa-form-panel select option,
+.ppa-testbed-wrap select option{
+  color:#fff;
+  background-color:#1c1c1c;
+}
+
+.wp-core-ui .ppa-form-group select:hover{color:#ff6c00;}
+
+/* Improve scrollbar contrast for option lists */
+select::-webkit-scrollbar{width:8px;}
+select::-webkit-scrollbar-thumb{background-color:#444;border-radius:4px;}
+select::-webkit-scrollbar-thumb:hover{background-color:#555;}
+
+/* Buttons */
+.ppa-actions{
+  margin-top:24px;
+  display:flex;
+  gap:12px;
+  flex-wrap:wrap;
+}
+
+.ppa-btn{
+  padding:10px 18px;
+  border-radius:6px;
+  cursor:pointer;
+  font-weight:600;
+  border:none;
+  transition:background .2s ease;
+}
+
+.ppa-btn-primary{background:var(--ppa-accent);color:#fff;}
+.ppa-btn-primary:hover{background:#ff8126;}
+.ppa-btn-secondary{
+  background:#2b2b2b;
+  color:#fff;
+  border:1px solid #333;
+}
+.ppa-btn-secondary:hover{background:#3a3a3a;}
+
+/* Busy/disabled (supports WP .button as well) */
+#ppa-composer .button[disabled],
+#ppa-composer .button[aria-busy="true"],
+.ppa-btn[disabled],
+.ppa-btn[aria-busy="true"]{
+  opacity:.6;
+  cursor:not-allowed;
+  pointer-events:none;
+  position:relative;
+}
+
+#ppa-composer .button-primary[aria-busy="true"]::after,
+.ppa-btn.ppa-btn-primary[aria-busy="true"]::after{
+  content:'…';
+  position:absolute;
+  right:10px;
+  top:50%;
+  transform:translateY(-50%);
+  font-weight:700;
+}
+
+/* Notices (shared) */
+.ppa-notice{
+  margin-top:10px;
+  padding:10px 12px;
+  border-radius:6px;
+  line-height:1.35;
+  font-size:13px;
+  background:rgba(255,255,255,.06);
+  color:#ffffff;
+  border:1px solid rgba(255,255,255,.12);
+  opacity:.95;
+  animation:ppaFadeIn .35s ease-in-out;
+}
+
+.ppa-notice-success{background:rgba(16,185,129,.15);border-color:rgba(16,185,129,.35);color:#d1fae5;}
+.ppa-notice-error{background:rgba(239,68,68,.18);border-color:rgba(239,68,68,.40);color:#fee2e2;}
+.ppa-notice-warn{background:rgba(255,108,0,.20);border-color:rgba(255,108,0,.40);color:#fff7ed;}
+.ppa-notice-info{background:rgba(59,130,246,.18);border-color:rgba(59,130,246,.40);color:#dbeafe;}
+
+/* Specific spots that use notices */
+#ppa-toolbar-msg{}
+#ppa-preview-pane{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:14px;}
+
+/* Animations */
+@keyframes ppaFadeIn{
+  from{opacity:0;transform:translateY(4px);}
+  to{opacity:1;transform:translateY(0);}
+}
+
+/* Apply to preview re-render target if present */
+#ppa-preview-body{animation:ppaFadeIn .3s ease-in-out;}
+
+/* Responsive */
+@media (max-width:900px){
+  .ppa-composer-wrap{grid-template-columns:1fr;}
+}
+
+/* ==========================================================================
+   PostPress AI — SETTINGS ONLY (LOCKED SCOPE)
+   Scope: body.postpress-ai_page_postpress-ai-settings …
+   Purpose: Branding polish ONLY for Settings screen (no Composer/Testbed impact). /* CHANGED */
+   Working Date: 2025-12-25 /* CHANGED */
+   ========================================================================== */ /* CHANGED */
+
+body.postpress-ai_page_postpress-ai-settings{
+  --ppa-settings-accent:#ff6c00;            /* CHANGED */
+  --ppa-settings-ink:#121212;               /* CHANGED */
+  --ppa-settings-muted:#6b7280;             /* CHANGED */
+  --ppa-settings-border:rgba(18,18,18,0.14);/* CHANGED */
+  --ppa-settings-panel:#ffffff;             /* CHANGED */
+  --ppa-settings-shadow:0 2px 10px rgba(0,0,0,0.06); /* CHANGED */
+  --ppa-settings-radius:12px;               /* CHANGED */
+}
+
+/* Headings */
+body.postpress-ai_page_postpress-ai-settings .wrap > h1{
+  color:var(--ppa-settings-accent) !important; /* CHANGED */
+  font-weight:900 !important;                  /* CHANGED */
+  letter-spacing:-0.02em;                      /* CHANGED */
+}
+
+body.postpress-ai_page_postpress-ai-settings .wrap h2{
+  color:var(--ppa-settings-ink) !important;    /* CHANGED */
+  font-weight:900 !important;                  /* CHANGED */
+  margin-top:28px !important;                  /* CHANGED */
+  padding-bottom:10px !important;              /* CHANGED */
+  border-bottom:1px solid rgba(18,18,18,0.10) !important; /* CHANGED */
+}
+
+/* Links (kill WP blue in this scope only) */
+body.postpress-ai_page_postpress-ai-settings .wrap a{
+  color:var(--ppa-settings-accent) !important; /* CHANGED */
+  font-weight:700;
+}
+
+/* Card-ify WP form tables (Settings only) */
+body.postpress-ai_page_postpress-ai-settings .wrap .form-table{
+  background:var(--ppa-settings-panel) !important; /* CHANGED */
+  border:1px solid var(--ppa-settings-border) !important; /* CHANGED */
+  border-radius:var(--ppa-settings-radius) !important; /* CHANGED */
+  overflow:hidden;
+  box-shadow:var(--ppa-settings-shadow) !important; /* CHANGED */
+  margin-top:12px !important;
+  margin-bottom:18px !important;
+}
+
+body.postpress-ai_page_postpress-ai-settings .wrap .form-table th,
+body.postpress-ai_page_postpress-ai-settings .wrap .form-table td{
+  padding:16px 18px !important;
+  border-bottom:1px solid rgba(18,18,18,0.08) !important;
+  vertical-align:top;
+}
+
+body.postpress-ai_page_postpress-ai-settings .wrap .form-table tr:last-child th,
+body.postpress-ai_page_postpress-ai-settings .wrap .form-table tr:last-child td{
+  border-bottom:0 !important;
+}
+
+body.postpress-ai_page_postpress-ai-settings .wrap .form-table th{
+  width:240px;
+  color:var(--ppa-settings-ink) !important;
+  font-weight:900 !important;
+}
+
+body.postpress-ai_page_postpress-ai-settings .wrap .form-table p.description{
+  color:var(--ppa-settings-muted) !important;
+}
+
+/* Inputs */
+body.postpress-ai_page_postpress-ai-settings .wrap input[type="text"],
+body.postpress-ai_page_postpress-ai-settings .wrap input[type="url"],
+body.postpress-ai_page_postpress-ai-settings .wrap input[type="email"],
+body.postpress-ai_page_postpress-ai-settings .wrap input[type="password"],
+body.postpress-ai_page_postpress-ai-settings .wrap input[type="number"],
+body.postpress-ai_page_postpress-ai-settings .wrap textarea{
+  border-radius:10px !important;
+  padding:0.55em 0.75rem !important;
+  border-color:#d1d5db !important;
+  box-shadow:none !important;
+  background:#ffffff !important;
+}
+
+body.postpress-ai_page_postpress-ai-settings .wrap select{
+  border-radius:10px !important;
+  padding:0.55em 0.75rem !important;
+  border-color:#d1d5db !important;
+  background-color:#ffffff !important;
+  box-shadow:none !important;
+  background-image:url("data:image/svg+xml;utf8,<svg fill='%23ff6c00' height='12' viewBox='0 0 24 24' width='12' xmlns='http://www.w3.org/2000/svg'><path d='M7 10l5 5 5-5z'/></svg>") !important;
+  background-repeat:no-repeat !important;
+  background-position:right 10px center !important;
+  background-size:12px !important;
+  padding-right:28px !important;
+}
+
+body.postpress-ai_page_postpress-ai-settings .wrap input:focus,
+body.postpress-ai_page_postpress-ai-settings .wrap select:focus,
+body.postpress-ai_page_postpress-ai-settings .wrap textarea:focus{
+  border-color:var(--ppa-settings-accent) !important;
+  box-shadow:0 0 0 1px var(--ppa-settings-accent) !important;
+}
+
+/* Force ALL primary buttons on Settings to brand orange */
+body.postpress-ai_page_postpress-ai-settings.wp-core-ui #wpbody-content .wrap .button-primary,
+body.postpress-ai_page_postpress-ai-settings.wp-core-ui #wpbody-content .wrap input[type="submit"].button-primary,
+body.postpress-ai_page_postpress-ai-settings.wp-core-ui #wpbody-content .wrap button.button-primary{
+  background:var(--ppa-settings-accent) !important;
+  border-color:var(--ppa-settings-accent) !important;
+  color:#ffffff !important;
+  font-weight:900 !important;
+  border-radius:999px !important;
+  padding:0.55em 1.15em !important;
+  box-shadow:none !important;
+  text-shadow:none !important;
+}
+
+body.postpress-ai_page_postpress-ai-settings.wp-core-ui #wpbody-content .wrap .button-primary:hover,
+body.postpress-ai_page_postpress-ai-settings.wp-core-ui #wpbody-content .wrap input[type="submit"].button-primary:hover,
+body.postpress-ai_page_postpress-ai-settings.wp-core-ui #wpbody-content .wrap button.button-primary:hover{
+  background:#ff8126 !important;
+  border-color:#ff8126 !important;
+}
+
+/* License action buttons — hierarchy (Settings only) */
+body.postpress-ai_page_postpress-ai-settings.wp-core-ui .wrap button[id*="verify"],
+body.postpress-ai_page_postpress-ai-settings.wp-core-ui .wrap input[id*="verify"],
+body.postpress-ai_page_postpress-ai-settings.wp-core-ui .wrap button[id*="activate"],
+body.postpress-ai_page_postpress-ai-settings.wp-core-ui .wrap input[id*="activate"]{
+  background:var(--ppa-settings-accent) !important;
+  border-color:var(--ppa-settings-accent) !important;
+  color:#ffffff !important;
+}
+
+body.postpress-ai_page_postpress-ai-settings.wp-core-ui .wrap button[id*="deactivate"],
+body.postpress-ai_page_postpress-ai-settings.wp-core-ui .wrap input[id*="deactivate"]{
+  background:#ffffff !important;
+  border-color:#b91c1c !important;
+  color:#b91c1c !important;
+}
+
+body.postpress-ai_page_postpress-ai-settings.wp-core-ui .wrap button[id*="test"],
+body.postpress-ai_page_postpress-ai-settings.wp-core-ui .wrap input[id*="test"]{
+  background:#ffffff !important;
+  border-color:rgba(255,108,0,0.75) !important;
+  color:var(--ppa-settings-accent) !important;
+}
+
+/* Notices: accent left bar */
+body.postpress-ai_page_postpress-ai-settings .wrap .notice{
+  border-left-color:var(--ppa-settings-accent) !important;
+}
+
+/* Result console: display-only look */
+body.postpress-ai_page_postpress-ai-settings .wrap textarea[readonly],
+body.postpress-ai_page_postpress-ai-settings .wrap textarea[disabled]{
+  font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace !important;
+  font-size:13px !important;
+  background:#f8fafc !important;
+  border-color:#e5e7eb !important;
+  box-shadow:inset 0 1px 2px rgba(0,0,0,0.04) !important;
+}
