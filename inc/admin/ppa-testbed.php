@@ -4,6 +4,9 @@
  * Path: inc/admin/ppa-testbed.php
  *
  * ========= CHANGE LOG =========
+ * 2026-01-01: HARDEN: Hard-stop Testbed template unless PPA_ENABLE_TESTBED === true.            // CHANGED:
+ *            Prevents accidental includes + keeps debug.log clean when Testbed is disabled.     // CHANGED:
+ *
  * 2025-11-16: Clarify "Save Draft (Store)" label + note to reflect AI store pipeline behavior.   // CHANGED:
  * 2025-11-15: Add Debug Headers button wired to ppa-testbed.js / ppa_debug_headers for Django diagnostics.   // CHANGED:
  * 2025-11-10: New dedicated Testbed template. No inline assets; IDs aligned with JS;          // CHANGED:
@@ -13,6 +16,12 @@
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
+
+// DEV-only: Testbed is disabled unless explicitly enabled.                                     // CHANGED:
+$ppa_testbed_enabled = ( defined( 'PPA_ENABLE_TESTBED' ) && true === PPA_ENABLE_TESTBED );      // CHANGED:
+if ( ! $ppa_testbed_enabled ) {                                                                 // CHANGED:
+    wp_die( esc_html__( 'No access.', 'postpress-ai' ) );                                       // CHANGED:
+}                                                                                               // CHANGED:
 
 // Current user (optional display)
 $current_user = wp_get_current_user();
