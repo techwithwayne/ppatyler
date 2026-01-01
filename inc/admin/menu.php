@@ -3,6 +3,9 @@
  * PostPress AI — Admin Menu Bootstrap
  *
  * ========= CHANGE LOG =========
+ * 2026-01-01: CLEAN: Remove routine "admin_menu registered" + "including composer/settings" logs. Log only on real errors/fallbacks. // CHANGED:
+ * 2026-01-01: CLEAN: Keep Testbed includes/logging fully gated; when disabled, direct URL stays silent + blocked. // CHANGED:
+ *
  * 2026-01-01: CLEAN: Stop noisy "admin_menu registered" logging on unrelated WP-admin screens. Only log on PPA pages. // CHANGED:
  * 2026-01-01: HARDEN: Block Testbed renderer unless PPA_ENABLE_TESTBED === true (prevents includes/log noise; direct URL returns "No access."). // CHANGED:
  *
@@ -223,11 +226,7 @@ if ( ! function_exists( 'ppa_register_admin_menu' ) ) {
                 remove_submenu_page( 'tools.php', 'ppa-testbed' );
                 remove_submenu_page( 'tools.php', 'postpress-ai-testbed' );
 
-                // CLEAN: only log on our own admin pages (prevents debug.log noise site-wide).                  // CHANGED:
-                $page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : '';               // CHANGED:
-                if ( in_array( $page, array( 'postpress-ai', 'postpress-ai-settings', 'postpress-ai-testbed' ), true ) ) { // CHANGED:
-                        error_log( 'PPA: admin_menu registered (slug=' . $menu_slug . ')' );                      // CHANGED:
-                }                                                                                                 // CHANGED:
+                // CHANGED: No routine logging here. Keep admin_menu silent unless something is actually wrong.
         }
         add_action( 'admin_menu', 'ppa_register_admin_menu', 9 );
 }
@@ -246,13 +245,12 @@ if ( ! function_exists( 'ppa_render_composer' ) ) {
                 $composer = trailingslashit( PPA_PLUGIN_DIR ) . 'inc/admin/composer.php';                 // CHANGED:
 
                 if ( file_exists( $composer ) ) {
-                        error_log( 'PPA: including composer.php' );
                         require $composer;
                         return;
                 }
 
                 // Fallback UI (minimal, no inline assets beyond this safe notice).
-                error_log( 'PPA: composer.php missing at ' . $composer );
+                error_log( 'PPA: composer.php missing at ' . $composer );                                  // CHANGED:
                 echo '<div class="wrap"><h1>PostPress Composer</h1><p>'
                         . esc_html__( 'Composer UI not found. Ensure inc/admin/composer.php exists.', 'postpress-ai' )
                         . '</p></div>';
@@ -272,7 +270,6 @@ if ( ! function_exists( 'ppa_render_settings' ) ) {                             
                 $settings = trailingslashit( PPA_PLUGIN_DIR ) . 'inc/admin/settings.php';                         // CHANGED:
 
                 if ( file_exists( $settings ) ) {                                                                 // CHANGED:
-                        error_log( 'PPA: including settings.php' );                                               // CHANGED:
                         require $settings;                                                                        // CHANGED:
                         return;                                                                                   // CHANGED:
                 }                                                                                                 // CHANGED:
@@ -310,8 +307,6 @@ if ( ! function_exists( 'ppa_render_testbed' ) ) {
 
                 foreach ( $candidates as $file ) {
                         if ( file_exists( $file ) ) {
-                                // Only logs when Testbed is enabled + opened (since we die above if disabled). // CHANGED:
-                                error_log( 'PPA: including ' . basename( $file ) );                                // CHANGED:
                                 require $file;
                                 return;
                         }
