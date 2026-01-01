@@ -1,0 +1,303 @@
+/* /home/u3007-tenkoaygp3je/www/techwithwayne.com/public_html/wp-content/plugins/postpress-ai/assets/css/admin-composer.css */
+
+/*
+ * PostPress AI — Admin Composer CSS (Modular)
+ *
+ * Scope:
+ *   body.toplevel_page_postpress-ai …
+ *   (Confirmed via document.body.className containing: "toplevel_page_postpress-ai")
+ *
+ * Purpose:
+ *   Composer screen ONLY:
+ *   - Dark Composer UI styling
+ *   - View Draft pill CTA styling
+ *   - Notices, panels, form controls
+ *
+ * ========= CHANGE LOG =========
+ * 2026-01-01 — CLEAN: Composer-only CSS finalized + safely scoped to body.toplevel_page_postpress-ai.       /* CHANGED */
+ * 2026-01-01 — FIX: View Draft CTA styles live here (NOT in admin.css).                                    /* CHANGED */
+ */
+
+body.toplevel_page_postpress-ai{
+  --ppa-bg:#121212;
+  --ppa-panel:#1c1c1c;
+  --ppa-border:rgba(255,255,255,.10);
+  --ppa-text:#f5f5f5;
+  --ppa-accent:#ff6c00;
+}
+
+/* Keep WordPress admin chrome readable against the dark Composer panel */
+body.toplevel_page_postpress-ai #wpbody-content{
+  padding-bottom: 24px;
+}
+
+/* Composer wrapper */
+body.toplevel_page_postpress-ai #ppa-composer{
+  background:var(--ppa-bg);
+  color:var(--ppa-text);
+}
+
+/* WP .wrap container polish */
+body.toplevel_page_postpress-ai .wrap{
+  max-width:1180px;
+}
+
+/* Two-panel layout */
+body.toplevel_page_postpress-ai .ppa-composer-wrap{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:24px;
+  color:var(--ppa-text);
+  background-color:var(--ppa-bg);
+  padding:24px;
+  border-radius:12px;
+  box-sizing:border-box;
+}
+
+/* Panels */
+body.toplevel_page_postpress-ai .ppa-form-panel,
+body.toplevel_page_postpress-ai .ppa-preview-panel{
+  background:var(--ppa-panel);
+  border-radius:12px;
+  padding:24px;
+  box-shadow:0 2px 10px rgba(0,0,0,.35);
+}
+
+/* subtle vertical divider between form and preview */
+@media (min-width:901px){
+  body.toplevel_page_postpress-ai .ppa-form-panel{
+    border-right:1px solid #2a2a2a;
+    margin-right:12px;
+  }
+}
+
+/* Preview panel scrolling/typography */
+body.toplevel_page_postpress-ai .ppa-preview-panel{
+  overflow-y:auto;
+  max-height:80vh;
+  font-size:15px;
+  line-height:1.7;
+  color:#e0e0e0;
+}
+
+/* Headings */
+body.toplevel_page_postpress-ai .ppa-form-panel h1,
+body.toplevel_page_postpress-ai .ppa-composer-wrap h1{
+  color:var(--ppa-accent);
+  margin-top:0;
+}
+
+body.toplevel_page_postpress-ai .ppa-preview-panel h2,
+body.toplevel_page_postpress-ai .ppa-preview-panel h3,
+body.toplevel_page_postpress-ai .ppa-preview-panel h4{
+  color:var(--ppa-accent);
+  margin-top:1.2em;
+  margin-bottom:.4em;
+  font-weight:700;
+}
+
+body.toplevel_page_postpress-ai .ppa-preview-panel p{margin-bottom:1em;}
+body.toplevel_page_postpress-ai .ppa-preview-panel strong{color:#fff;font-weight:700;}
+body.toplevel_page_postpress-ai .ppa-preview-panel em{color:#f5f5f5;font-style:italic;}
+body.toplevel_page_postpress-ai .ppa-preview-panel ul,
+body.toplevel_page_postpress-ai .ppa-preview-panel ol{
+  margin-left:24px;
+  padding-left:0;
+  color:#d0d0d0;
+}
+body.toplevel_page_postpress-ai .ppa-preview-panel li{margin-bottom:6px;}
+body.toplevel_page_postpress-ai .ppa-preview-panel a{color:#ff8126;text-decoration:underline;}
+body.toplevel_page_postpress-ai .ppa-preview-panel a:hover{color:#ffa45b;}
+body.toplevel_page_postpress-ai .ppa-preview-panel hr{
+  border:0;
+  border-top:1px solid #333;
+  margin:1.5em 0;
+}
+
+/* Scrollbars */
+body.toplevel_page_postpress-ai .ppa-preview-panel::-webkit-scrollbar{width:8px;}
+body.toplevel_page_postpress-ai .ppa-preview-panel::-webkit-scrollbar-thumb{background-color:#2b2b2b;border-radius:8px;}
+body.toplevel_page_postpress-ai .ppa-preview-panel::-webkit-scrollbar-thumb:hover{background-color:#3a3a3a;}
+
+/* Subhead helper copy */
+body.toplevel_page_postpress-ai .ppa-subhead{
+  margin-bottom:12px;
+  font-size:14px;
+  color:#ccc;
+}
+
+/* Forms */
+body.toplevel_page_postpress-ai .ppa-form-group{margin-top:16px;}
+
+body.toplevel_page_postpress-ai .ppa-form-panel label{
+  display:block;
+  margin-top:16px;
+  font-weight:600;
+  color:#fff;
+}
+
+body.toplevel_page_postpress-ai .ppa-form-panel input,
+body.toplevel_page_postpress-ai .ppa-form-panel select,
+body.toplevel_page_postpress-ai .ppa-form-panel textarea{
+  width:100%;
+  margin-top:6px;
+  padding:10px 12px;
+  border-radius:6px;
+  border:1px solid #333;
+  background:#2b2b2b;
+  color:#fff;
+  font-size:14px;
+}
+
+body.toplevel_page_postpress-ai .ppa-form-panel input:focus,
+body.toplevel_page_postpress-ai .ppa-form-panel select:focus,
+body.toplevel_page_postpress-ai .ppa-form-panel textarea:focus{
+  outline:none;
+  border-color:var(--ppa-accent);
+  box-shadow:0 0 0 1px var(--ppa-accent);
+}
+
+/* Dropdown chevron + padding (brand orange) */
+body.toplevel_page_postpress-ai .ppa-form-panel select{
+  color:#f5f5f5;
+  background-color:#2b2b2b;
+  border:1px solid #444;
+  appearance:none;
+  -webkit-appearance:none;
+  -moz-appearance:none;
+  background-image:url("data:image/svg+xml;utf8,<svg fill='%23ff6c00' height='12' viewBox='0 0 24 24' width='12' xmlns='http://www.w3.org/2000/svg'><path d='M7 10l5 5 5-5z'/></svg>");
+  background-repeat:no-repeat;
+  background-position:right 10px center;
+  background-size:12px;
+  padding-right:28px;
+}
+
+body.toplevel_page_postpress-ai .ppa-form-panel select option{
+  color:#fff;
+  background-color:#1c1c1c;
+}
+
+/* Buttons */
+body.toplevel_page_postpress-ai .ppa-actions{
+  margin-top:24px;
+  display:flex;
+  gap:12px;
+  flex-wrap:wrap;
+}
+
+body.toplevel_page_postpress-ai .ppa-btn{
+  padding:10px 18px;
+  border-radius:6px;
+  cursor:pointer;
+  font-weight:600;
+  border:none;
+  transition:background .2s ease;
+}
+
+body.toplevel_page_postpress-ai .ppa-btn-primary{background:var(--ppa-accent);color:#fff;}
+body.toplevel_page_postpress-ai .ppa-btn-primary:hover{background:#ff8126;}
+
+body.toplevel_page_postpress-ai .ppa-btn-secondary{
+  background:#2b2b2b;
+  color:#fff;
+  border:1px solid #333;
+}
+body.toplevel_page_postpress-ai .ppa-btn-secondary:hover{background:#3a3a3a;}
+
+/* Busy/disabled (supports WP .button as well) */
+body.toplevel_page_postpress-ai #ppa-composer .button[disabled],
+body.toplevel_page_postpress-ai #ppa-composer .button[aria-busy="true"],
+body.toplevel_page_postpress-ai .ppa-btn[disabled],
+body.toplevel_page_postpress-ai .ppa-btn[aria-busy="true"]{
+  opacity:.6;
+  cursor:not-allowed;
+  pointer-events:none;
+  position:relative;
+}
+
+body.toplevel_page_postpress-ai #ppa-composer .button-primary[aria-busy="true"]::after,
+body.toplevel_page_postpress-ai .ppa-btn.ppa-btn-primary[aria-busy="true"]::after{
+  content:'…';
+  position:absolute;
+  right:10px;
+  top:50%;
+  transform:translateY(-50%);
+  font-weight:700;
+}
+
+/* Notices */
+body.toplevel_page_postpress-ai .ppa-notice{
+  margin-top:10px;
+  padding:10px 12px;
+  border-radius:6px;
+  line-height:1.35;
+  font-size:13px;
+  background:rgba(255,255,255,.06);
+  color:#ffffff;
+  border:1px solid rgba(255,255,255,.12);
+  opacity:.95;
+  animation:ppaFadeIn .35s ease-in-out;
+}
+
+body.toplevel_page_postpress-ai .ppa-notice-success{background:rgba(16,185,129,.15);border-color:rgba(16,185,129,.35);color:#d1fae5;}
+body.toplevel_page_postpress-ai .ppa-notice-error{background:rgba(239,68,68,.18);border-color:rgba(239,68,68,.40);color:#fee2e2;}
+body.toplevel_page_postpress-ai .ppa-notice-warn{background:rgba(255,108,0,.20);border-color:rgba(255,108,0,.40);color:#fff7ed;}
+body.toplevel_page_postpress-ai .ppa-notice-info{background:rgba(59,130,246,.18);border-color:rgba(59,130,246,.40);color:#dbeafe;}
+
+@keyframes ppaFadeIn{
+  from{opacity:0;transform:translateY(4px);}
+  to{opacity:1;transform:translateY(0);}
+}
+
+/* Preview re-render target */
+body.toplevel_page_postpress-ai #ppa-preview-body{
+  animation:ppaFadeIn .3s ease-in-out;
+}
+
+/* ------------------------------------------------------------
+   View Draft (Composer-only CTA)
+   ------------------------------------------------------------ */
+
+body.toplevel_page_postpress-ai #ppa-view-draft-wrap{
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+body.toplevel_page_postpress-ai a#ppa-view-draft-link{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: var(--ppa-accent);
+  color: #ffffff;
+  font-weight: 900;
+  text-decoration: none;
+
+  border: 1px solid rgba(0,0,0,0.0);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+}
+
+body.toplevel_page_postpress-ai a#ppa-view-draft-link:hover{
+  background:#ff8126;
+  color:#ffffff;
+}
+
+body.toplevel_page_postpress-ai a#ppa-view-draft-link:focus{
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(255,108,0,0.65), 0 6px 18px rgba(0,0,0,0.35);
+}
+
+/* Responsive */
+@media (max-width:900px){
+  body.toplevel_page_postpress-ai .ppa-composer-wrap{
+    grid-template-columns:1fr;
+  }
+  body.toplevel_page_postpress-ai .ppa-preview-panel{
+    max-height:none;
+  }
+}
