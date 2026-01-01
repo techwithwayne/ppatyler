@@ -446,7 +446,7 @@ if (!function_exists('ppa_admin_enqueue')) {
 
 // Hook (guard against accidental double-hooking in edge includes)
 if (function_exists('add_action') && function_exists('has_action')) {
-    if (!has_action('admin_enqueue_scripts', 'ppa_admin_enqueue')) {
+    if (false === has_action('admin_enqueue_scripts', 'ppa_admin_enqueue')) { // CHANGED:
         add_action('admin_enqueue_scripts', 'ppa_admin_enqueue', 10, 1);
     }
 } else {
