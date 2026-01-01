@@ -4,6 +4,8 @@
  * PostPress AI — Logging / History (CPT)
  *
  * ========= CHANGE LOG =========
+ * 2026-01-01: HARDEN: Register admin-only list-table hooks only in admin context (no bleed / no overhead elsewhere). # CHANGED:
+ *
  * 2025-11-04: Admin list niceties + CLI-safe row action.                                            # CHANGED:
  *             - Toolbar filters (Type/Status/Provider).                                             # CHANGED:
  *             - Query parsing to apply filters.                                                     # CHANGED:
@@ -26,19 +28,24 @@ class PPALogging { // CHANGED:
 
 	/** Wire hooks (to be called from plugin bootstrap). */
 	public static function init() { // CHANGED:
+		// CPT must exist everywhere (frontend + admin) because log_event() can run from either context. // CHANGED:
 		add_action( 'init', [ __CLASS__, 'register_cpt' ] );                                   // CHANGED:
-		add_filter( 'manage_edit-ppa_generation_columns', [ __CLASS__, 'admin_columns' ] );    // CHANGED:
-		add_action(
-			'manage_ppa_generation_posts_custom_column',
-			[ __CLASS__, 'admin_column_render' ],
-			10,
-			2
-		);                                                                                     // CHANGED:
 
-		// Admin list niceties                                                                 // CHANGED:
-		add_action( 'restrict_manage_posts', [ __CLASS__, 'render_filters' ] );                // CHANGED:
-		add_action( 'parse_query', [ __CLASS__, 'apply_filters_to_query' ] );                  // CHANGED:
-		add_filter( 'post_row_actions', [ __CLASS__, 'row_actions' ], 10, 2 );                 // CHANGED:
+		// Admin-only list table niceties (columns/filters/row actions).                          // CHANGED:
+		if ( is_admin() ) {                                                                      // CHANGED:
+			add_filter( 'manage_edit-ppa_generation_columns', [ __CLASS__, 'admin_columns' ] );    // CHANGED:
+			add_action(
+				'manage_ppa_generation_posts_custom_column',
+				[ __CLASS__, 'admin_column_render' ],
+				10,
+				2
+			);                                                                                     // CHANGED:
+
+			// Admin list niceties                                                                 // CHANGED:
+			add_action( 'restrict_manage_posts', [ __CLASS__, 'render_filters' ] );                // CHANGED:
+			add_action( 'parse_query', [ __CLASS__, 'apply_filters_to_query' ] );                  // CHANGED:
+			add_filter( 'post_row_actions', [ __CLASS__, 'row_actions' ], 10, 2 );                 // CHANGED:
+		}                                                                                         // CHANGED:
 	} // CHANGED:
 
 	/** Register the `ppa_generation` CPT to store history rows. */
