@@ -3,6 +3,9 @@
  * PostPress AI — Admin Enqueue
  *
  * ========= CHANGE LOG =========
+ * 2026-01-01 • HARDEN: Sanitize page param with wp_unslash() before sanitize_key() (consistent + safer).        // CHANGED:
+ * 2026-01-01 • HARDEN: purge_by_rel() style branch now respects $needle (prevents over-purging our CSS).        // CHANGED:
+ *
  * 2026-01-01 • HARDEN: Gate ALL Testbed enqueues behind PPA_ENABLE_TESTBED === true.                           // CHANGED:
  *              Direct URL hits to Testbed while disabled enqueue nothing (keeps logs clean).                   // CHANGED:
  * 2026-01-01 • FIX: Enqueue Testbed-only CSS when present (admin-testbed.css). Keeps per-screen CSS modular.   # CHANGED:
@@ -169,7 +172,7 @@ if (!function_exists('ppa_admin_enqueue')) {
             }                                                                                                       // (kept)
             $screen_id = $screen ? $screen->id : '';
         }
-        $page_param = isset($_GET['page']) ? sanitize_key((string) $_GET['page']) : '';
+        $page_param = isset($_GET['page']) ? sanitize_key(wp_unslash((string) $_GET['page'])) : '';                  // CHANGED:
 
         // Screen IDs
         $slug_main_ui  = 'toplevel_page_postpress-ai';                      // Composer (top-level)
@@ -318,7 +321,7 @@ if (!function_exists('ppa_admin_enqueue')) {
                 if ($st && !empty($st->registered)) {
                     foreach ($st->registered as $h => $dep) {
                         $src = isset($dep->src) ? (string) $dep->src : '';
-                        if ($src && strpos($src, $rel_path) !== false) {
+                        if ($src && strpos($src, $rel_path) !== false && strpos($src, $needle) !== false) {          // CHANGED:
                             if (wp_style_is($h, 'enqueued')) {
                                 wp_dequeue_style($h);
                             }
