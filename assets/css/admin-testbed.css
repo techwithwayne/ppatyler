@@ -1,0 +1,193 @@
+/* ============================================================
+   PostPress AI — Admin Testbed CSS (Modular)
+   File: /assets/css/admin-testbed.css
+
+   Purpose:
+   - Testbed-only styling (isolated).
+   - Keeps UNBREAKABLE RULE trajectory: each admin page gets its own CSS.
+
+   Scoping:
+   - EVERYTHING is scoped to:
+     body.postpress-ai_page_postpress-ai-testbed
+
+   ========= CHANGE LOG =========
+   2026-01-01 — ADD: Testbed-only CSS extracted from legacy admin.css patterns.
+                Fully scoped to testbed screen only.                                 # CHANGED:
+   ============================================================ */
+
+body.postpress-ai_page_postpress-ai-testbed{
+  --ppa-bg:#121212;
+  --ppa-panel:#1c1c1c;
+  --ppa-border:rgba(255,255,255,.10);
+  --ppa-text:#f5f5f5;
+  --ppa-accent:#ff6c00;
+}
+
+/* Testbed wrapper */
+body.postpress-ai_page_postpress-ai-testbed .ppa-testbed-wrap{
+  background:var(--ppa-bg);
+  color:var(--ppa-text);
+  padding:24px;
+  border-radius:12px;
+  box-sizing:border-box;
+}
+
+/* Headings */
+body.postpress-ai_page_postpress-ai-testbed .ppa-testbed-wrap h1,
+body.postpress-ai_page_postpress-ai-testbed .ppa-testbed-wrap h2,
+body.postpress-ai_page_postpress-ai-testbed .ppa-testbed-wrap h3{
+  color:var(--ppa-accent);
+  margin-top:0;
+}
+
+body.postpress-ai_page_postpress-ai-testbed pre.ppa-outline{
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+}
+
+/* Forms */
+body.postpress-ai_page_postpress-ai-testbed .ppa-subhead{
+  margin-bottom:12px;
+  font-size:14px;
+  color:#ccc;
+}
+
+body.postpress-ai_page_postpress-ai-testbed .ppa-form-group{
+  margin-top:16px;
+}
+
+body.postpress-ai_page_postpress-ai-testbed label{
+  display:block;
+  margin-top:16px;
+  font-weight:600;
+  color:#fff;
+}
+
+/* Inputs */
+body.postpress-ai_page_postpress-ai-testbed input,
+body.postpress-ai_page_postpress-ai-testbed select,
+body.postpress-ai_page_postpress-ai-testbed textarea{
+  width:100%;
+  margin-top:6px;
+  padding:10px 12px;
+  border-radius:6px;
+  border:1px solid #333;
+  background:#2b2b2b;
+  color:#fff;
+  font-size:14px;
+}
+
+body.postpress-ai_page_postpress-ai-testbed input:focus,
+body.postpress-ai_page_postpress-ai-testbed select:focus,
+body.postpress-ai_page_postpress-ai-testbed textarea:focus{
+  outline:none;
+  border-color:var(--ppa-accent);
+  box-shadow:0 0 0 1px var(--ppa-accent);
+}
+
+/* Dropdown (select) appearance fix for dark theme */
+body.postpress-ai_page_postpress-ai-testbed select{
+  color:#f5f5f5;
+  background-color:#2b2b2b;
+  border:1px solid #444;
+  appearance:none;
+  -webkit-appearance:none;
+  -moz-appearance:none;
+  background-image:url("data:image/svg+xml;utf8,<svg fill='%23ff6c00' height='12' viewBox='0 0 24 24' width='12' xmlns='http://www.w3.org/2000/svg'><path d='M7 10l5 5 5-5z'/></svg>");
+  background-repeat:no-repeat;
+  background-position:right 10px center;
+  background-size:12px;
+  padding-right:28px;
+}
+
+body.postpress-ai_page_postpress-ai-testbed select option{
+  color:#fff;
+  background-color:#1c1c1c;
+}
+
+/* Scrollbars */
+body.postpress-ai_page_postpress-ai-testbed select::-webkit-scrollbar{width:8px;}
+body.postpress-ai_page_postpress-ai-testbed select::-webkit-scrollbar-thumb{background-color:#444;border-radius:4px;}
+body.postpress-ai_page_postpress-ai-testbed select::-webkit-scrollbar-thumb:hover{background-color:#555;}
+
+/* Actions + buttons */
+body.postpress-ai_page_postpress-ai-testbed .ppa-actions{
+  margin-top:24px;
+  display:flex;
+  gap:12px;
+  flex-wrap:wrap;
+}
+
+body.postpress-ai_page_postpress-ai-testbed .ppa-btn{
+  padding:10px 18px;
+  border-radius:6px;
+  cursor:pointer;
+  font-weight:600;
+  border:none;
+  transition:background .2s ease;
+}
+
+body.postpress-ai_page_postpress-ai-testbed .ppa-btn-primary{
+  background:var(--ppa-accent);
+  color:#fff;
+}
+body.postpress-ai_page_postpress-ai-testbed .ppa-btn-primary:hover{background:#ff8126;}
+
+body.postpress-ai_page_postpress-ai-testbed .ppa-btn-secondary{
+  background:#2b2b2b;
+  color:#fff;
+  border:1px solid #333;
+}
+body.postpress-ai_page_postpress-ai-testbed .ppa-btn-secondary:hover{background:#3a3a3a;}
+
+/* Busy/disabled */
+body.postpress-ai_page_postpress-ai-testbed .button[disabled],
+body.postpress-ai_page_postpress-ai-testbed .button[aria-busy="true"],
+body.postpress-ai_page_postpress-ai-testbed .ppa-btn[disabled],
+body.postpress-ai_page_postpress-ai-testbed .ppa-btn[aria-busy="true"]{
+  opacity:.6;
+  cursor:not-allowed;
+  pointer-events:none;
+  position:relative;
+}
+
+body.postpress-ai_page_postpress-ai-testbed .ppa-btn.ppa-btn-primary[aria-busy="true"]::after{
+  content:'…';
+  position:absolute;
+  right:10px;
+  top:50%;
+  transform:translateY(-50%);
+  font-weight:700;
+}
+
+/* Notices (testbed-only) */
+body.postpress-ai_page_postpress-ai-testbed .ppa-notice{
+  margin-top:10px;
+  padding:10px 12px;
+  border-radius:6px;
+  line-height:1.35;
+  font-size:13px;
+  background:rgba(255,255,255,.06);
+  color:#ffffff;
+  border:1px solid rgba(255,255,255,.12);
+  opacity:.95;
+  animation:ppaFadeIn .35s ease-in-out;
+}
+
+body.postpress-ai_page_postpress-ai-testbed .ppa-notice-success{background:rgba(16,185,129,.15);border-color:rgba(16,185,129,.35);color:#d1fae5;}
+body.postpress-ai_page_postpress-ai-testbed .ppa-notice-error{background:rgba(239,68,68,.18);border-color:rgba(239,68,68,.40);color:#fee2e2;}
+body.postpress-ai_page_postpress-ai-testbed .ppa-notice-warn{background:rgba(255,108,0,.20);border-color:rgba(255,108,0,.40);color:#fff7ed;}
+body.postpress-ai_page_postpress-ai-testbed .ppa-notice-info{background:rgba(59,130,246,.18);border-color:rgba(59,130,246,.40);color:#dbeafe;}
+
+@keyframes ppaFadeIn{
+  from{opacity:0;transform:translateY(4px);}
+  to{opacity:1;transform:translateY(0);}
+}
+
+/* Optional preview pane target (safe if missing) */
+body.postpress-ai_page_postpress-ai-testbed #ppa-preview-pane{
+  background:rgba(255,255,255,.02);
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:6px;
+  padding:14px;
+}
