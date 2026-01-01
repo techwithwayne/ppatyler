@@ -3,6 +3,7 @@
    File: /assets/css/admin.css
 
    ========= CHANGE LOG =========
+   2026-01-01 — CLEAN: Remove stale Composer View Draft marker in admin.css; Composer CTA styles live in admin-composer.css. # CHANGED:
    2025-11-10 — Dedupe notice/button blocks; add .ppa-testbed-wrap; generic .ppa-notice
                 variants; keep brand tokens; readability polish.                         # CHANGED:
    2025-11-10 — FIX: remove nested comment markers from header to prevent CSS breakage.   # CHANGED:
@@ -429,4 +430,5 @@ body.postpress-ai_page_postpress-ai-settings .wrap textarea[disabled]{
   border-color:#e5e7eb !important;
   box-shadow:inset 0 1px 2px rgba(0,0,0,0.04) !important;
 }
-/* PPA Composer — View Draft link (pill-style, Composer-only) */
+
+/* Composer-only: View Draft CTA styles live in assets/css/admin-composer.css */
