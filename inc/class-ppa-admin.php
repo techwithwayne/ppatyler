@@ -4,6 +4,8 @@
  * Path: inc/class-ppa-admin.php
  *
  * ========= CHANGE LOG =========
+ * 2026-01-01: CLEAN: Make deprecated enqueue() a silent no-op (no debug.log noise on admin screens). # CHANGED:
+ *
  * 2025-11-11: Harden deprecation — remove_action across common priorities and callback forms;        # CHANGED:
  *             add late guard on admin_init to ensure no legacy enqueue survives.                     # CHANGED:
  * 2025-11-10: Deprecate legacy asset enqueues; delegate to centralized loader in                     # (prev)
@@ -65,9 +67,7 @@ class Admin { // CHANGED:
      * Deprecated no-op. Assets are now enqueued exclusively by inc/admin/enqueue.php.         // CHANGED:
      */
     public static function enqueue($hook_suffix = null) { // CHANGED:
-        if (defined('WP_DEBUG') && WP_DEBUG) {                                                // CHANGED:
-            error_log('PPA: Admin::enqueue() is deprecated; assets load via inc/admin/enqueue.php'); // CHANGED:
-        }                                                                                     // CHANGED:
+        // CHANGED: Silent no-op. No logs here — we only log real failures in active code paths.
         return;                                                                               // CHANGED:
     }                                                                                         // CHANGED:
 }                                                                                             // CHANGED:
