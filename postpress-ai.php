@@ -13,6 +13,9 @@
 
 /**
  * CHANGE LOG
+ * 2026-01-01 — CLEAN: Remove noisy admin-post "fallback armed" debug.log line; keep only error logging on failure. # CHANGED:
+ * 2026-01-01 — HARDEN: Gate ppa-testbed cache-busting so it only applies when Testbed is enabled AND the request is the Testbed page. # CHANGED:
+ *
  * 2025-12-28 — HARDEN: Arm admin-post fallback only when the incoming request action matches our settings actions.
  *              This reduces debug.log noise and avoids attaching extra hooks on unrelated admin-post requests. # CHANGED:
  * 2025-12-28 — HARDEN: Detect admin-post via $pagenow OR PHP_SELF basename for stacks where $pagenow isn't set
@@ -112,14 +115,14 @@ add_action( 'plugins_loaded', function () {                                     
         // CHANGED: Only arm fallback when THIS request is actually one of our actions.
         $req_action = '';                                                                                  // CHANGED:
         if ( isset( $_REQUEST['action'] ) ) {                                                              // CHANGED:
-                $req_action = sanitize_key( wp_unslash( $_REQUEST['action'] ) );                               // CHANGED:
+            $req_action = sanitize_key( wp_unslash( $_REQUEST['action'] ) );                                // CHANGED:
         }                                                                                                  // CHANGED:
 
         $action_map = array(                                                                               // CHANGED:
-                'ppa_test_connectivity' => 'handle_test_connectivity',                                          // CHANGED:
-                'ppa_license_verify'    => 'handle_license_verify',                                             // CHANGED:
-                'ppa_license_activate'  => 'handle_license_activate',                                           // CHANGED:
-                'ppa_license_deactivate'=> 'handle_license_deactivate',                                         // CHANGED:
+                'ppa_test_connectivity' => 'handle_test_connectivity',                                      // CHANGED:
+                'ppa_license_verify'    => 'handle_license_verify',                                         // CHANGED:
+                'ppa_license_activate'  => 'handle_license_activate',                                       // CHANGED:
+                'ppa_license_deactivate'=> 'handle_license_deactivate',                                     // CHANGED:
         );                                                                                                  // CHANGED:
 
         if ( '' === $req_action || ! isset( $action_map[ $req_action ] ) ) {                               // CHANGED:
@@ -130,29 +133,34 @@ add_action( 'plugins_loaded', function () {                                     
 
         $dispatch = function ( $method, $action ) use ( $settings_file ) {                                 // CHANGED:
                 // Require settings.php only when a settings action actually fires (this request).            // CHANGED:
-                if ( file_exists( $settings_file ) ) {                                                        // CHANGED:
-                        require_once $settings_file;                                                              // CHANGED:
-                }                                                                                              // CHANGED:
+                if ( file_exists( $settings_file ) ) {                                                      // CHANGED:
+                        require_once $settings_file;                                                        // CHANGED:
+                }                                                                                            // CHANGED:
 
                 if ( class_exists( 'PPA_Admin_Settings' ) && is_callable( array( 'PPA_Admin_Settings', $method ) ) ) { // CHANGED:
                         // Call the real handler (it does capability + nonce checks and redirects).              // CHANGED:
-                        call_user_func( array( 'PPA_Admin_Settings', $method ) );                                 // CHANGED:
+                        call_user_func( array( 'PPA_Admin_Settings', $method ) );                               // CHANGED:
                         exit; // Safety: the handler normally redirects+exits; this guarantees no fall-through.  // CHANGED:
-                }                                                                                              // CHANGED:
+                }                                                                                            // CHANGED:
 
-                error_log( 'PPA: admin-post fallback could not dispatch ' . $action . ' → ' . $method );       // CHANGED:
-                wp_die( esc_html__( 'PostPress AI settings handler missing. Please reinstall or contact support.', 'postpress-ai' ), 'PostPress AI', array( 'response' => 500 ) ); // CHANGED:
+                // CHANGED: Only log on actual failure (this is important signal; not "noise").
+                error_log( 'PPA: admin-post fallback could not dispatch ' . $action . ' → ' . $method );    // CHANGED:
+                wp_die(
+                        esc_html__( 'PostPress AI settings handler missing. Please reinstall or contact support.', 'postpress-ai' ),
+                        'PostPress AI',
+                        array( 'response' => 500 )
+                ); // CHANGED:
         };                                                                                                 // CHANGED:
 
         $method = $action_map[ $req_action ];                                                              // CHANGED:
 
         // CHANGED: Register ONLY the one hook needed for this request.
         add_action( 'admin_post_' . $req_action, function () use ( $dispatch, $method, $req_action ) {     // CHANGED:
-                $dispatch( $method, $req_action );                                                            // CHANGED:
+                $dispatch( $method, $req_action );                                                         // CHANGED:
         }, 0 );                                                                                            // CHANGED:
 
-        error_log( 'PPA: admin-post fallback armed (action=' . $req_action . ')' );                        // CHANGED:
-}, 7 );                                                                                                 // CHANGED:
+        // CHANGED: Intentionally no "armed" error_log here — keep admin-post clean unless something fails.
+}, 7 );                                                                                                   // CHANGED:
 
 /** ---------------------------------------------------------------------------------
  * AJAX handlers — load early so admin-ajax.php can find them
@@ -193,6 +201,16 @@ add_action( 'plugins_loaded', function () {                                     
  * Admin asset cache-busting (ver=filemtime) — enforce for admin handles/SRCs
  * -------------------------------------------------------------------------------- */
 add_action( 'admin_init', function () {                                                          // CHANGED:
+        // CHANGED: Local helper — identifies the Testbed request by page slug.
+        // We only touch ppa-testbed versions when Testbed is enabled AND we are on the Testbed page.
+        $ppa_is_testbed_request = function () {                                                   // CHANGED:
+                $page = '';                                                                       // CHANGED:
+                if ( isset( $_GET['page'] ) ) {                                                   // CHANGED:
+                        $page = sanitize_key( wp_unslash( $_GET['page'] ) );                      // CHANGED:
+                }                                                                                 // CHANGED:
+                return in_array( $page, array( 'postpress-ai-testbed', 'ppa-testbed' ), true );   // CHANGED:
+        };                                                                                        // CHANGED:
+
         // Styles (admin) — by handle
         add_filter( 'style_loader_src', function ( $src, $handle ) {
                 if ( 'ppa-admin-css' !== $handle ) { return $src; }
@@ -203,8 +221,19 @@ add_action( 'admin_init', function () {                                         
         }, 10, 2 );
 
         // Scripts (admin) — by handle (ppa-admin, ppa-testbed)
-        add_filter( 'script_loader_src', function ( $src, $handle ) {
+        add_filter( 'script_loader_src', function ( $src, $handle ) use ( $ppa_is_testbed_request ) {      // CHANGED:
                 if ( 'ppa-admin' !== $handle && 'ppa-testbed' !== $handle ) { return $src; }
+
+                // CHANGED: Never touch ppa-testbed unless enabled + actually on the Testbed page.
+                if ( 'ppa-testbed' === $handle ) {                                                        // CHANGED:
+                        if ( ! defined( 'PPA_ENABLE_TESTBED' ) || true !== PPA_ENABLE_TESTBED ) {          // CHANGED:
+                                return $src;                                                               // CHANGED:
+                        }                                                                                   // CHANGED:
+                        if ( ! $ppa_is_testbed_request() ) {                                                // CHANGED:
+                                return $src;                                                               // CHANGED:
+                        }                                                                                   // CHANGED:
+                }                                                                                           // CHANGED:
+
                 $file = ( 'ppa-admin' === $handle )
                         ? ( PPA_PLUGIN_DIR . 'assets/js/admin.js' )
                         : ( PPA_PLUGIN_DIR . 'inc/admin/ppa-testbed.js' );
@@ -215,16 +244,16 @@ add_action( 'admin_init', function () {                                         
 
         // Scripts (admin) — by SRC (catch-all): if any handle loads our admin.js path, force filemtime ver.   # CHANGED:
         add_filter( 'script_loader_src', function ( $src, $handle ) {                                          // CHANGED:
-                // Quick path check; works for absolute URLs too.                                                  // CHANGED:
-                if ( strpos( (string) $src, 'postpress-ai/assets/js/admin.js' ) === false ) {                      // CHANGED:
-                        return $src;                                                                                  // CHANGED:
-                }                                                                                                  // CHANGED:
-                $file = PPA_PLUGIN_DIR . 'assets/js/admin.js';                                                     // CHANGED:
-                $ver  = ( file_exists( $file ) ? (string) filemtime( $file ) : PPA_VERSION );                      // CHANGED:
-                $src  = remove_query_arg( 'ver', $src );                                                           // CHANGED:
-                return add_query_arg( 'ver', $ver, $src );                                                         // CHANGED:
-        }, 999, 2 );                                                                                            // CHANGED:
-}, 9 );                                                                                                      // CHANGED:
+                // Quick path check; works for absolute URLs too.                                              // CHANGED:
+                if ( strpos( (string) $src, 'postpress-ai/assets/js/admin.js' ) === false ) {                  // CHANGED:
+                        return $src;                                                                          // CHANGED:
+                }                                                                                              // CHANGED:
+                $file = PPA_PLUGIN_DIR . 'assets/js/admin.js';                                                 // CHANGED:
+                $ver  = ( file_exists( $file ) ? (string) filemtime( $file ) : PPA_VERSION );                  // CHANGED:
+                $src  = remove_query_arg( 'ver', $src );                                                       // CHANGED:
+                return add_query_arg( 'ver', $ver, $src );                                                     // CHANGED:
+        }, 999, 2 );                                                                                           // CHANGED:
+}, 9 );                                                                                                       // CHANGED:
 
 /** ---------------------------------------------------------------------------------
  * Public asset cache-busting (ver=filemtime) — handles registered by shortcode
