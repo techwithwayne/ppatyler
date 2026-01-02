@@ -1,6 +1,8 @@
 <?php
 /**
  * CHANGE LOG
+ * 2026-01-02 — CLEAN: Remove routine composer render debug.log line (keep logs for real failures only). // CHANGED:
+ *
  * 2025-11-16.2 — Add "Generate Draft" button (ppa-generate) for AI /generate/ pipeline.              // CHANGED:
  * 2025-11-16 — Clarify "Save Draft (Store)" label so UI reflects store behavior.                     // CHANGED:
  * 2025-11-11 — Add Advanced fields (#ppa-title, #ppa-excerpt, #ppa-slug) for admin.js autofill/store parity.  // CHANGED:
@@ -16,8 +18,7 @@
 
 if (!defined('ABSPATH')) { exit; }
 
-// Optional debug trace (safe; no secrets)
-error_log('PPA: composer.php rendering at ' . date('c'));
+// CHANGED: Routine composer render logging removed (was noisy on normal admin usage).
 
 // Nonce for AJAX headers (validated server-side where applicable)
 $ppa_nonce    = wp_create_nonce('ppa-admin');
