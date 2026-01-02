@@ -7,6 +7,8 @@
  * /wp-content/plugins/postpress-ai/inc/class-ppa-controller.php
  *
  * CHANGE LOG
+ * 2026-01-02 • CLEAN: Remove success-only debug.log spam for generate/store django_url + store payload_source. // CHANGED:
+ *
  * 2025-12-30 • FIX: Normalize Django base URL (auto-prepend https:// when scheme missing + hard fallback)
  *              to prevent wp_remote_post “A valid URL was not provided.”                                   // CHANGED:
  * 2025-12-30 • FIX: Replace str_starts_with() usage for PHP 7.4 compatibility (use strpos===0).            // CHANGED:
@@ -259,7 +261,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			if ( '' === $base ) {
 				$base = self::normalize_django_base( 'https://apps.techwithwayne.com/postpress-ai/' );
 			}
-
 
 			$base = (string) apply_filters( 'ppa_django_base_url', $base );
 
@@ -579,14 +580,10 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			self::verify_nonce_or_forbid();
 
 			$payload = self::read_json_body();
-			if ( isset( $payload['source'] ) && 'php_input' !== (string) $payload['source'] ) { // CHANGED:
-				error_log( 'PPA: store payload_source=' . $payload['source'] . ' ct=' . $payload['content_type'] ); // CHANGED:
-			}
 
 			$base = self::django_base();
 
 			$django_url = $base . '/store/';
-			error_log( 'PPA: store django_url=' . $django_url );
 
 			$response = wp_remote_post( $django_url, self::build_args( $payload['raw'] ) );
 
@@ -745,7 +742,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			$base    = self::django_base();
 
 			$django_url = $base . '/generate/';
-			error_log( 'PPA: generate django_url=' . $django_url );
 
 			$response = wp_remote_post( $django_url, self::build_args( $payload['raw'] ) );
 
