@@ -725,7 +725,9 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			}
 
 			self::log_proxy_event( 'store', $payload['json'], $json, $code );
-			error_log( 'PPA: store http ' . $code );
+			if ( $code < 200 || $code >= 300 ) { // CHANGED:
+				error_log( 'PPA: store http ' . $code ); // CHANGED:
+			}
 			wp_send_json_success( $json, $code );
 		}
 
@@ -762,7 +764,9 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			}
 
 			self::log_proxy_event( 'generate', $payload['json'], $json, $code );
-			error_log( 'PPA: generate http ' . $code );
+			if ( $code < 200 || $code >= 300 ) { // CHANGED:
+				error_log( 'PPA: generate http ' . $code ); // CHANGED:
+			}
 			wp_send_json_success( $json, $code );
 		}
 
