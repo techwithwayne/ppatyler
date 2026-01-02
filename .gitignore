@@ -1,6 +1,6 @@
 # PostPress AI — repo hygiene (plugin folder scoped)
 
-# Server-created log files (never commit)
+# Server-created logs (never commit)
 php_errorlog
 
 # Temporary folders used for confirmation tests
