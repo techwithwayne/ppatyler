@@ -1,23 +1,18 @@
-# Composer / npm lock if you want to ignore (optional)
-# IDE / OS
-# Keys / certs
-# Local env / secrets
-# Node / PHP deps
-# composer.lock
-# uploads and build artifacts
-*.bak
-*.crt
-*.key
-*.log
-*.orig
-*.pem
-*.zip
+# PostPress AI — repo hygiene (plugin folder scoped)
+
+# Server-created log files (never commit)
+php_errorlog
+
+# Temporary folders used for confirmation tests
+inc/admin/_backup_OFF/
+
+# Local one-off safety backups (never commit)
+inc/class-ppa-controller.php.bak.*
+inc/*.bak.*
+*.bak.*
+
+# Editor junk
+*.swp
+*.swo
+*.tmp
 .DS_Store
-.env
-.env.* 
-.idea/
-.vscode/
-node_modules/
-uploads/
-vendor/
-wp-content/uploads/
