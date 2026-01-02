@@ -27,7 +27,7 @@ class Admin { // CHANGED:
      */
     public static function init() { // CHANGED:
         // Actively remove any previously-attached legacy enqueues, regardless of priority    // CHANGED:
-        foreach ([10, 20, 99, 100] as $prio) {                                               // CHANGED:
+        foreach ([10, 20, 99, 100] as $prio) {                                                // CHANGED:
             remove_action('admin_enqueue_scripts', [__CLASS__, 'enqueue'], $prio);            // CHANGED:
             // Some older builds stored the callable as a static-string reference             // CHANGED:
             remove_action('admin_enqueue_scripts', __NAMESPACE__ . '\\Admin::enqueue', $prio);// CHANGED:
