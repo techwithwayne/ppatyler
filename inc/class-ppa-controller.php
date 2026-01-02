@@ -258,10 +258,8 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			$base = self::normalize_django_base( $base_raw );
 			if ( '' === $base ) {
 				$base = self::normalize_django_base( 'https://apps.techwithwayne.com/postpress-ai/' );
-				error_log( 'PPA: django_base invalid base_raw; fallback applied' );
 			}
 
-			error_log( 'PPA: django_base pre_filter=' . $base );
 
 			$base = (string) apply_filters( 'ppa_django_base_url', $base );
 
@@ -271,7 +269,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 				error_log( 'PPA: django_base invalid after filter; fallback applied' );
 			}
 
-			error_log( 'PPA: django_base final=' . $base2 );
 			return $base2;
 		}
 
