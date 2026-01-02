@@ -1,18 +1,22 @@
-# PostPress AI — repo hygiene (plugin folder scoped)
+# PostPress AI — plugin-scoped repo hygiene
 
 # Server-created logs (never commit)
 php_errorlog
+wp-content/debug.log
+../../wp-content/debug.log
 
-# Temporary folders used for confirmation tests
-inc/admin/_backup_OFF/
-
-# Local one-off safety backups (never commit)
-inc/class-ppa-controller.php.bak.*
+# One-off safety backups (never commit)
 inc/*.bak.*
+inc/**/.bak.*
 *.bak.*
-
-# Editor junk
 *.swp
 *.swo
 *.tmp
 .DS_Store
+
+# Temporary folders used for confirmation tests
+inc/admin/_backup_OFF/
+
+# Backup snapshot directory is not part of shipping
+inc/admin/backup/
+assets/backup/
