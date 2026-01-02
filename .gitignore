@@ -20,3 +20,11 @@ inc/admin/_backup_OFF/
 # Backup snapshot directory is not part of shipping
 inc/admin/backup/
 assets/backup/
+php_errorlog.*
+error_log
+error_log.*
+*~
+Thumbs.db
+*.bak
+*_bak_*
+inc/admin/_backup*/
