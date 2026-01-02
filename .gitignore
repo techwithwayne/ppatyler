@@ -28,3 +28,4 @@ Thumbs.db
 *.bak
 *_bak_*
 inc/admin/_backup*/
+node_modules/
