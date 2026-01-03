@@ -14,8 +14,13 @@
  * - Connection Key is legacy; if present we use it, otherwise we use License Key as the auth key. // CHANGED:
  *
  * ========= CHANGE LOG =========
- * 2026-01-03: FIX: Prefer License Key as X-PPA-Key for Settings actions even if legacy ppa_shared_key option exists.
- *             Constant/filter still override. Keeps customer installs from relying on ppa_shared_key.          // CHANGED:
+ * 2026-01-03: FIX: Correctly derive/persist license activation state from Django license.v1 shape
+ *            (data.activation.activated). This unblocks controller-side enforcement later.            // CHANGED:
+ *
+ * 2026-01-03: PREP: Persist license state to options (active/inactive/unknown + last_error + checked_at).      // CHANGED:
+ *            PREP: On Verify, sync/clear local "active on this site" flag from server response (no guessing). // CHANGED:
+ *            UX: Show a masked warning when a Connection Key is detected (wp-config/option) because it can    // CHANGED:
+ *                explain “Settings not active but Composer still works”. (No secrets shown.)                 // CHANGED:
  *
  * 2026-01-01: CLEAN: Reduce Settings debug.log noise — log failures only (no start/ok chatter).                 // CHANGED:
  * 2026-01-01: FIX: Make init() + register_settings() idempotent (prevents double hook/registration).          // CHANGED:
@@ -100,6 +105,12 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 		// ===== License option + transient (display-only) =====
 		const OPT_LICENSE_KEY      = 'ppa_license_key';                                        // CHANGED:
 		const OPT_ACTIVE_SITE      = 'ppa_license_active_site';                                // CHANGED:
+
+		// CHANGED: Persisted state for enforcement (controller will use this next). No secrets stored.
+		const OPT_LICENSE_STATE            = 'ppa_license_state';                              // CHANGED:
+		const OPT_LICENSE_LAST_ERROR_CODE  = 'ppa_license_last_error_code';                    // CHANGED:
+		const OPT_LICENSE_LAST_CHECKED_AT  = 'ppa_license_last_checked_at';                    // CHANGED:
+
 		const TRANSIENT_LAST_LIC   = 'ppa_license_last_result';
 		const LAST_LIC_TTL_SECONDS = 10 * MINUTE_IN_SECONDS;
 
@@ -364,51 +375,198 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 				return 'active';                                                                 // CHANGED:
 			}                                                                                     // CHANGED:
 
-			if ( ! is_array( $last ) ) {                                                         // CHANGED:
-				return 'unknown';                                                                // CHANGED:
-			}                                                                                     // CHANGED:
+			// CHANGED: Use the server-shaped parser for the cached transient too (license.v1 + legacy shapes).
+			$server_state = self::derive_activation_state_from_result_only( $last );             // CHANGED:
+			if ( 'unknown' !== $server_state ) {                                                 // CHANGED:
+				return $server_state;                                                            // CHANGED:
+			}                                                                                    // CHANGED:
 
-			$data = isset( $last['data'] ) && is_array( $last['data'] ) ? $last['data'] : array(); // CHANGED:
-
-			$candidates = array(                                                                  // CHANGED:
-				'active',                                                                         // CHANGED:
-				'is_active',                                                                      // CHANGED:
-				'site_active',                                                                    // CHANGED:
-				'activated',                                                                      // CHANGED:
-				'status',                                                                         // CHANGED:
-				'activation_status',                                                              // CHANGED:
-			);
-
-			foreach ( $candidates as $k ) {                                                       // CHANGED:
-				if ( array_key_exists( $k, $data ) ) {                                            // CHANGED:
-					$v = $data[ $k ];                                                             // CHANGED:
-					if ( is_bool( $v ) ) {                                                        // CHANGED:
-						return $v ? 'active' : 'inactive';                                        // CHANGED:
-					}                                                                             // CHANGED:
-					if ( is_string( $v ) ) {                                                      // CHANGED:
-						$vv = strtolower( trim( $v ) );                                           // CHANGED:
-						if ( in_array( $vv, array( 'active', 'activated', 'on', 'enabled' ), true ) ) { // CHANGED:
-							return 'active';                                                     // CHANGED:
-						}                                                                         // CHANGED:
-						if ( in_array( $vv, array( 'inactive', 'deactivated', 'off', 'disabled' ), true ) ) { // CHANGED:
-							return 'inactive';                                                   // CHANGED:
-						}                                                                         // CHANGED:
-					}                                                                             // CHANGED:
-				}                                                                                 // CHANGED:
-			}
-
-			if ( isset( $data['active_sites'] ) && is_array( $data['active_sites'] ) ) {          // CHANGED:
-				$home = untrailingslashit( home_url( '/' ) );                                     // CHANGED:
-				foreach ( $data['active_sites'] as $site ) {                                      // CHANGED:
-					if ( is_string( $site ) && untrailingslashit( $site ) === $home ) {           // CHANGED:
-						return 'active';                                                         // CHANGED:
-					}                                                                             // CHANGED:
-				}                                                                                 // CHANGED:
-				return 'inactive';                                                                // CHANGED:
-			}
-
-			return 'unknown';                                                                      // CHANGED:
+			return 'unknown';                                                                     // CHANGED:
 		}
+
+		/**
+		 * CHANGED: Same as derive_activation_state(), but DOES NOT trust local OPT_ACTIVE_SITE.
+		 * We use this to sync local flags after a Verify response (server truth).                 // CHANGED:
+		 *
+		 * @param mixed $result
+		 * @return string active|inactive|unknown
+		 */
+		private static function derive_activation_state_from_result_only( $result ) {            // CHANGED:
+			if ( ! is_array( $result ) ) {                                                        // CHANGED:
+				return 'unknown';                                                                 // CHANGED:
+			}                                                                                      // CHANGED:
+
+			$data = isset( $result['data'] ) && is_array( $result['data'] ) ? $result['data'] : array(); // CHANGED:
+
+			// CHANGED: Django license.v1 shape puts the per-site activation truth here:
+			// data.activation.activated = true/false
+			if ( isset( $data['activation'] ) && is_array( $data['activation'] ) && array_key_exists( 'activated', $data['activation'] ) ) { // CHANGED:
+				$v = $data['activation']['activated'];                                            // CHANGED:
+				if ( is_bool( $v ) ) {                                                            // CHANGED:
+					return $v ? 'active' : 'inactive';                                            // CHANGED:
+				}                                                                                  // CHANGED:
+				if ( is_string( $v ) ) {                                                          // CHANGED:
+					$vv = strtolower( trim( $v ) );                                               // CHANGED:
+					if ( in_array( $vv, array( 'true', '1', 'yes', 'on', 'active', 'activated' ), true ) ) { // CHANGED:
+						return 'active';                                                          // CHANGED:
+					}                                                                              // CHANGED:
+					if ( in_array( $vv, array( 'false', '0', 'no', 'off', 'inactive', 'deactivated' ), true ) ) { // CHANGED:
+						return 'inactive';                                                        // CHANGED:
+					}                                                                              // CHANGED:
+				}                                                                                  // CHANGED:
+			}                                                                                      // CHANGED:
+
+			$candidates = array( 'active', 'is_active', 'site_active', 'activated', 'status', 'activation_status' ); // CHANGED:
+			foreach ( $candidates as $k ) {                                                        // CHANGED:
+				if ( array_key_exists( $k, $data ) ) {                                             // CHANGED:
+					$v = $data[ $k ];                                                              // CHANGED:
+					if ( is_bool( $v ) ) {                                                         // CHANGED:
+						return $v ? 'active' : 'inactive';                                         // CHANGED:
+					}                                                                              // CHANGED:
+					if ( is_string( $v ) ) {                                                       // CHANGED:
+						$vv = strtolower( trim( $v ) );                                            // CHANGED:
+						if ( in_array( $vv, array( 'active', 'activated', 'on', 'enabled' ), true ) ) { // CHANGED:
+							return 'active';                                                      // CHANGED:
+						}                                                                          // CHANGED:
+						if ( in_array( $vv, array( 'inactive', 'deactivated', 'off', 'disabled' ), true ) ) { // CHANGED:
+							return 'inactive';                                                    // CHANGED:
+						}                                                                          // CHANGED:
+					}                                                                              // CHANGED:
+				}                                                                                  // CHANGED:
+			}                                                                                      // CHANGED:
+
+			if ( isset( $data['active_sites'] ) && is_array( $data['active_sites'] ) ) {           // CHANGED:
+				$home = untrailingslashit( home_url( '/' ) );                                      // CHANGED:
+				foreach ( $data['active_sites'] as $site ) {                                       // CHANGED:
+					if ( is_string( $site ) && untrailingslashit( $site ) === $home ) {            // CHANGED:
+						return 'active';                                                          // CHANGED:
+					}                                                                              // CHANGED:
+				}                                                                                  // CHANGED:
+				return 'inactive';                                                                 // CHANGED:
+			}                                                                                      // CHANGED:
+
+			return 'unknown';                                                                       // CHANGED:
+		}                                                                                           // CHANGED:
+
+		/**
+		 * CHANGED: Extract a stable-ish error code string from a Django-shaped response.          // CHANGED:
+		 *
+		 * @param mixed $result
+		 * @return string
+		 */
+		private static function extract_error_code( $result ) {                                    // CHANGED:
+			if ( ! is_array( $result ) ) {                                                         // CHANGED:
+				return '';                                                                         // CHANGED:
+			}                                                                                       // CHANGED:
+
+			$err = array();                                                                         // CHANGED:
+			if ( isset( $result['error'] ) && is_array( $result['error'] ) ) {                      // CHANGED:
+				$err = $result['error'];                                                            // CHANGED:
+			} elseif ( isset( $result['data']['error'] ) && is_array( $result['data']['error'] ) ) { // CHANGED:
+				$err = $result['data']['error'];                                                    // CHANGED:
+			}                                                                                       // CHANGED:
+
+			$code = '';                                                                             // CHANGED:
+			if ( isset( $err['code'] ) ) {                                                          // CHANGED:
+				$code = (string) $err['code'];                                                      // CHANGED:
+			} elseif ( isset( $err['type'] ) ) {                                                     // CHANGED:
+				$code = (string) $err['type'];                                                      // CHANGED:
+			}                                                                                       // CHANGED:
+
+			$code = strtolower( trim( $code ) );                                                     // CHANGED:
+			return $code;                                                                            // CHANGED:
+		}                                                                                           // CHANGED:
+
+		/**
+		 * CHANGED: Persist license state in options (controller will enforce next).               // CHANGED:
+		 * - Stores: state + last_error + checked_at (no secrets).                                 // CHANGED:
+		 * - Syncs OPT_ACTIVE_SITE on Verify using server truth (ignores old local flag).          // CHANGED:
+		 *
+		 * @param string $action verify|activate|deactivate
+		 * @param array  $result normalized Django result
+		 */
+		private static function persist_license_state_from_action( $action, $result ) {           // CHANGED:
+			$action = is_string( $action ) ? strtolower( trim( $action ) ) : '';                   // CHANGED:
+			$ok     = ( is_array( $result ) && isset( $result['ok'] ) && true === $result['ok'] ); // CHANGED:
+
+			$state = self::derive_activation_state_from_result_only( $result );                    // CHANGED:
+			$err   = $ok ? '' : self::extract_error_code( $result );                                // CHANGED:
+
+			// Action wins when it's explicitly successful.                                          // CHANGED:
+			if ( $ok && 'activate' === $action ) {                                                  // CHANGED:
+				$state = 'active';                                                                  // CHANGED:
+			} elseif ( $ok && 'deactivate' === $action ) {                                          // CHANGED:
+				$state = 'inactive';                                                                // CHANGED:
+			}                                                                                       // CHANGED:
+
+			// Persist timestamps + error code even if state is unknown (still useful).             // CHANGED:
+			update_option( self::OPT_LICENSE_LAST_CHECKED_AT, time(), false );                      // CHANGED:
+			update_option( self::OPT_LICENSE_LAST_ERROR_CODE, $err, false );                        // CHANGED:
+
+			// Persist state only if we have a real value.                                            // CHANGED:
+			if ( in_array( $state, array( 'active', 'inactive', 'unknown' ), true ) ) {            // CHANGED:
+				update_option( self::OPT_LICENSE_STATE, $state, false );                            // CHANGED:
+			}                                                                                       // CHANGED:
+
+			// Sync "active on this site" local flag from server truth on verify.                    // CHANGED:
+			if ( $ok && 'verify' === $action ) {                                                    // CHANGED:
+				if ( 'active' === $state ) {                                                        // CHANGED:
+					update_option( self::OPT_ACTIVE_SITE, home_url( '/' ), false );                 // CHANGED:
+				} elseif ( 'inactive' === $state ) {                                                // CHANGED:
+					delete_option( self::OPT_ACTIVE_SITE );                                         // CHANGED:
+				}                                                                                   // CHANGED:
+			}                                                                                       // CHANGED:
+
+			// On explicit success actions, keep legacy behavior.                                     // CHANGED:
+			if ( $ok && 'activate' === $action ) {                                                  // CHANGED:
+				update_option( self::OPT_ACTIVE_SITE, home_url( '/' ), false );                     // CHANGED:
+			} elseif ( $ok && 'deactivate' === $action ) {                                          // CHANGED:
+				delete_option( self::OPT_ACTIVE_SITE );                                             // CHANGED:
+			}                                                                                       // CHANGED:
+
+			// If server says "not activated", clear local active flag (prevents stale UI).         // CHANGED:
+			if ( ! $ok ) {                                                                          // CHANGED:
+				$revoke_codes = array( 'not_activated', 'invalid_license', 'expired', 'revoked', 'license_not_found' ); // CHANGED:
+				if ( in_array( $err, $revoke_codes, true ) ) {                                      // CHANGED:
+					delete_option( self::OPT_ACTIVE_SITE );                                         // CHANGED:
+					update_option( self::OPT_LICENSE_STATE, 'inactive', false );                    // CHANGED:
+				}                                                                                   // CHANGED:
+			}                                                                                       // CHANGED:
+		}                                                                                           // CHANGED:
+
+		/**
+		 * CHANGED: Detect a Connection Key present via wp-config constant or legacy option.       // CHANGED:
+		 * Returns masked-safe info only; never expose actual key.                                  // CHANGED:
+		 *
+		 * @return array{present:bool,source:string,masked:string}
+		 */
+		private static function detect_connection_key_info() {                                     // CHANGED:
+			$const = '';                                                                            // CHANGED:
+			if ( defined( 'PPA_SHARED_KEY' ) && PPA_SHARED_KEY ) {                                  // CHANGED:
+				$const = trim( (string) PPA_SHARED_KEY );                                          // CHANGED:
+			}                                                                                       // CHANGED:
+
+			$opt = get_option( 'ppa_shared_key', '' );                                              // CHANGED:
+			$opt = is_string( $opt ) ? trim( $opt ) : '';                                          // CHANGED:
+
+			if ( '' !== $const ) {                                                                  // CHANGED:
+				return array(                                                                       // CHANGED:
+					'present' => true,                                                              // CHANGED:
+					'source'  => 'wp-config.php',                                                   // CHANGED:
+					'masked'  => self::mask_secret( $const ),                                       // CHANGED:
+				);                                                                                  // CHANGED:
+			}                                                                                       // CHANGED:
+
+			if ( '' !== $opt ) {                                                                    // CHANGED:
+				return array(                                                                       // CHANGED:
+					'present' => true,                                                              // CHANGED:
+					'source'  => 'settings option',                                                 // CHANGED:
+					'masked'  => self::mask_secret( $opt ),                                         // CHANGED:
+				);                                                                                  // CHANGED:
+			}                                                                                       // CHANGED:
+
+			return array( 'present' => false, 'source' => '', 'masked' => '' );                      // CHANGED:
+		}                                                                                           // CHANGED:
 
 		// Legacy helpers (kept registered, not shown in UI now).
 		public static function section_connection_intro() {
@@ -490,37 +648,32 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 		}
 
 		private static function resolve_shared_key() {
-			// 1) Hard override for ops/dev (constant) stays highest priority.                          // CHANGED:
-			if ( defined( 'PPA_SHARED_KEY' ) && PPA_SHARED_KEY ) {                                   // CHANGED:
-				return trim( (string) PPA_SHARED_KEY );                                              // CHANGED:
-			}                                                                                         // CHANGED:
+			if ( defined( 'PPA_SHARED_KEY' ) && PPA_SHARED_KEY ) {
+				return trim( (string) PPA_SHARED_KEY );
+			}
 
-			// 2) Filter override stays next (hosting/mu-plugin/etc).                                  // CHANGED:
-			$filtered = apply_filters( 'ppa_shared_key', '' );                                        // CHANGED:
-			if ( is_string( $filtered ) ) {                                                           // CHANGED:
-				$filtered = trim( $filtered );                                                        // CHANGED:
-				if ( '' !== $filtered ) {                                                              // CHANGED:
-					return $filtered;                                                                  // CHANGED:
-				}                                                                                      // CHANGED:
-			}                                                                                          // CHANGED:
+			$opt = get_option( 'ppa_shared_key', '' );
+			if ( is_string( $opt ) ) {
+				$opt = trim( $opt );
+				if ( '' !== $opt ) {
+					return $opt;
+				}
+			}
 
-			// 3) Customer default: use the saved License Key as X-PPA-Key.                             // CHANGED:
-			//    This prevents hidden legacy ppa_shared_key option values from overriding real licenses. // CHANGED:
-			$lic = self::get_license_key();                                                            // CHANGED:
-			if ( '' !== $lic ) {                                                                       // CHANGED:
-				return $lic;                                                                           // CHANGED:
-			}                                                                                          // CHANGED:
+			$filtered = apply_filters( 'ppa_shared_key', '' );
+			if ( is_string( $filtered ) ) {
+				$filtered = trim( $filtered );
+				if ( '' !== $filtered ) {
+					return $filtered;
+				}
+			}
 
-			// 4) Last-resort legacy fallback: old installs that only had ppa_shared_key.               // CHANGED:
-			$opt = get_option( 'ppa_shared_key', '' );                                                  // CHANGED:
-			if ( is_string( $opt ) ) {                                                                  // CHANGED:
-				$opt = trim( $opt );                                                                    // CHANGED:
-				if ( '' !== $opt ) {                                                                    // CHANGED:
-					return $opt;                                                                         // CHANGED:
-				}                                                                                      // CHANGED:
-			}                                                                                          // CHANGED:
+			$lic = self::get_license_key();
+			if ( '' !== $lic ) {
+				return $lic;
+			}
 
-			return '';                                                                                  // CHANGED:
+			return '';
 		}
 
 		private static function get_license_key() {
@@ -685,6 +838,9 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 			$result = self::normalize_django_response( $response );
 			self::cache_last_license_result( $result );
 
+			// CHANGED: Persist state for enforcement + sync stale local flags after Verify.
+			self::persist_license_state_from_action( $action, $result ); // CHANGED:
+
 			// CHANGED: failure-only logging (no success chatter; no secret dumps).
 			$http = ( is_array( $result ) && isset( $result['_http_status'] ) ) ? (int) $result['_http_status'] : 0; // CHANGED:
 			$ok   = ( is_array( $result ) && isset( $result['ok'] ) && true === $result['ok'] ); // CHANGED:
@@ -698,14 +854,6 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 				$err_code = trim( $err_code ); // CHANGED:
 				self::log( 'license_action failed: action=' . $action . ' http=' . $http . ( '' !== $err_code ? ' code=' . $err_code : '' ) ); // CHANGED:
 			} // CHANGED:
-
-			if ( $ok ) {
-				if ( 'activate' === $action ) {
-					update_option( self::OPT_ACTIVE_SITE, home_url( '/' ), false );
-				} elseif ( 'deactivate' === $action ) {
-					delete_option( self::OPT_ACTIVE_SITE );
-				}
-			}
 
 			$notice = self::notice_from_license_result( ucfirst( $action ), $result );
 			$status = ( isset( $result['ok'] ) && true === $result['ok'] ) ? 'ok' : 'error';
@@ -858,6 +1006,9 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 			$is_active_here     = ( 'active' === $activation_state );
 			$is_inactive_here   = ( 'inactive' === $activation_state );
 			$site_limit_reached = self::is_plan_limit_site_limit_reached( $last );               // CHANGED:
+
+			// CHANGED: Connection Key detection (masked) — helps explain licensing vs proxy behavior.
+			$ck = self::detect_connection_key_info();                                             // CHANGED:
 			?>
 			<div class="wrap ppa-admin ppa-settings">
 				<h1><?php esc_html_e( 'PostPress AI Settings', 'postpress-ai' ); ?></h1>
@@ -879,6 +1030,18 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 
 					<h2 class="title"><?php esc_html_e( 'Setup', 'postpress-ai' ); ?></h2>
 					<p class="ppa-help"><?php esc_html_e( 'Paste your license key below, then click Save.', 'postpress-ai' ); ?></p>
+
+					<?php if ( ! empty( $ck['present'] ) ) : // CHANGED: ?>
+						<p class="ppa-help">
+							<strong><?php esc_html_e( 'Heads up:', 'postpress-ai' ); ?></strong>
+							<?php echo esc_html( sprintf(
+								/* translators: 1: source (wp-config.php/settings option), 2: masked key */
+								__( 'A Connection Key is detected from %1$s (%2$s). Customers usually don’t need this. If Settings says “Not active” but Composer still works, this is why.', 'postpress-ai' ),
+								(string) $ck['source'],
+								(string) $ck['masked']
+							) ); ?>
+						</p>
+					<?php endif; ?>
 
 					<form method="post" action="options.php">
 						<?php settings_fields( 'ppa_settings' ); ?>
