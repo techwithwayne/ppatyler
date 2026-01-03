@@ -3,6 +3,8 @@
  * PostPress AI — Admin Enqueue
  *
  * ========= CHANGE LOG =========
+ * 2026-01-03 • FIX: Guard ppa-admin-editor.js enqueue when file missing; adjust deps so no 404 + no breakage. // CHANGED:
+ *
  * 2026-01-01 • HARDEN: Sanitize page param with wp_unslash() before sanitize_key() (consistent + safer).        // CHANGED:
  * 2026-01-01 • HARDEN: purge_by_rel() style branch now respects $needle (prevents over-purging our CSS).        // CHANGED:
  *
@@ -390,27 +392,43 @@ if (!function_exists('ppa_admin_enqueue')) {
             $maybe_enqueue('ppa-admin-payloads', $admin_payloads_js_url, array('jquery','ppa-admin-config','ppa-admin-core'), $admin_payloads_js_ver, $admin_payloads_js_file);
             $maybe_enqueue('ppa-admin-notices',  $admin_notices_js_url,  array('jquery','ppa-admin-config','ppa-admin-core'), $admin_notices_js_ver,  $admin_notices_js_file);
 
-            // JS editor helpers — after core, before main admin.js
-            wp_register_script(
-                'ppa-admin-editor',
-                $admin_editor_js_url,
-                array('jquery', 'ppa-admin-config', 'ppa-admin-core'),
-                $admin_editor_js_ver,
-                true
-            );
-            wp_enqueue_script('ppa-admin-editor');
+            // JS editor helpers — OPTIONAL. If file is missing, do NOT enqueue (prevents 404).                        // CHANGED:
+            $editor_ok  = (file_exists($admin_editor_js_file) && (filesize($admin_editor_js_file) > 0));              // CHANGED:
+            $editor_dep = $editor_ok ? 'ppa-admin-editor' : 'ppa-admin-core';                                         // CHANGED:
 
-            // Modular scripts (composer) — after editor helpers; enqueue only when non-empty.
-            $maybe_enqueue('ppa-admin-generate-view',     $admin_generate_view_js_url, array('jquery','ppa-admin-config','ppa-admin-core','ppa-admin-editor'), $admin_generate_view_js_ver, $admin_generate_view_js_file);
-            $maybe_enqueue('ppa-admin-composer-preview',  $admin_comp_preview_js_url,  array('jquery','ppa-admin-config','ppa-admin-core','ppa-admin-editor'), $admin_comp_preview_js_ver,  $admin_comp_preview_js_file);
-            $maybe_enqueue('ppa-admin-composer-generate', $admin_comp_generate_js_url, array('jquery','ppa-admin-config','ppa-admin-core','ppa-admin-editor'), $admin_comp_generate_js_ver, $admin_comp_generate_js_file);
-            $maybe_enqueue('ppa-admin-composer-store',    $admin_comp_store_js_url,    array('jquery','ppa-admin-config','ppa-admin-core','ppa-admin-editor'), $admin_comp_store_js_ver,    $admin_comp_store_js_file);
+            if ($editor_ok) {                                                                                         // CHANGED:
+                wp_register_script(                                                                                   // CHANGED:
+                    'ppa-admin-editor',                                                                               // CHANGED:
+                    $admin_editor_js_url,                                                                             // CHANGED:
+                    array('jquery', 'ppa-admin-config', 'ppa-admin-core'),                                            // CHANGED:
+                    $admin_editor_js_ver,                                                                             // CHANGED:
+                    true                                                                                              // CHANGED:
+                );                                                                                                     // CHANGED:
+                wp_enqueue_script('ppa-admin-editor');                                                                // CHANGED:
+            }                                                                                                          // CHANGED:
 
-            // JS — depend on config + core + editor so namespaces exist before admin.js runs
+            // Modular scripts (composer) — depend on editor ONLY when it exists.                                      // CHANGED:
+            $composer_deps = array('jquery','ppa-admin-config','ppa-admin-core');                                      // CHANGED:
+            if ($editor_ok) {                                                                                         // CHANGED:
+                $composer_deps[] = 'ppa-admin-editor';                                                                // CHANGED:
+            }                                                                                                         // CHANGED:
+
+            $maybe_enqueue('ppa-admin-generate-view',     $admin_generate_view_js_url, $composer_deps, $admin_generate_view_js_ver, $admin_generate_view_js_file); // CHANGED:
+            $maybe_enqueue('ppa-admin-composer-preview',  $admin_comp_preview_js_url,  $composer_deps, $admin_comp_preview_js_ver,  $admin_comp_preview_js_file);  // CHANGED:
+            $maybe_enqueue('ppa-admin-composer-generate', $admin_comp_generate_js_url, $composer_deps, $admin_comp_generate_js_ver, $admin_comp_generate_js_file); // CHANGED:
+            $maybe_enqueue('ppa-admin-composer-store',    $admin_comp_store_js_url,    $composer_deps, $admin_comp_store_js_ver,    $admin_comp_store_js_file);    // CHANGED:
+
+            // JS — depend on config + core (+ editor only if present) + active modules                               // CHANGED:
+            $admin_deps = array('jquery', 'ppa-admin-config', 'ppa-admin-core');                                      // CHANGED:
+            if ($editor_ok) {                                                                                         // CHANGED:
+                $admin_deps[] = 'ppa-admin-editor';                                                                   // CHANGED:
+            }                                                                                                         // CHANGED:
+            $admin_deps = array_merge($admin_deps, $active_modules);                                                  // CHANGED:
+
             wp_register_script(
                 'ppa-admin',
                 $admin_js_url,
-                array_merge(array('jquery', 'ppa-admin-config', 'ppa-admin-core', 'ppa-admin-editor'), $active_modules),
+                $admin_deps,                                                                                          // CHANGED:
                 $admin_js_ver,
                 true
             );
