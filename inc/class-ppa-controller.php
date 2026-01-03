@@ -7,6 +7,11 @@
  * /wp-content/plugins/postpress-ai/inc/class-ppa-controller.php
  *
  * CHANGE LOG
+ * 2026-01-03 • FIX: Prefer saved license key for X-PPA-Key (customer installs no longer depend on ppa_shared_key). // CHANGED:
+ * 2026-01-03 • FIX: Enforce license gating: block preview/store/generate when license key missing (no more shared-key bypass). // CHANGED:
+ * 2026-01-03 • HARDEN: Allow shared-key fallback ONLY when explicitly enabled (constant/filter). // CHANGED:
+ * 2026-01-03 • CLEAN: No secrets logged; keep existing response shapes + endpoint behavior unchanged. // CHANGED:
+ *
  * 2026-01-02 • CLEAN: Remove success-only debug.log spam for generate/store django_url + store payload_source. // CHANGED:
  *
  * 2025-12-30 • FIX: Normalize Django base URL (auto-prepend https:// when scheme missing + hard fallback)
@@ -274,6 +279,42 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 		}
 
 		/**
+		 * Resolve license key from option(s) (customer primary).
+		 *
+		 * @return string
+		 */
+		private static function license_key() { // CHANGED:
+			// Primary known key.
+			$k = get_option( 'ppa_license_key', '' );
+			if ( is_string( $k ) ) {
+				$k = trim( $k );
+				if ( '' !== $k ) { return $k; }
+			}
+
+			// Compatibility fallbacks (older naming).
+			foreach ( array( 'ppa_activation_key', 'ppa_key', 'postpress_ai_license_key' ) as $opt_name ) { // CHANGED:
+				$v = get_option( $opt_name, '' ); // CHANGED:
+				if ( is_string( $v ) ) { // CHANGED:
+					$v = trim( $v ); // CHANGED:
+					if ( '' !== $v ) { return $v; } // CHANGED:
+				} // CHANGED:
+			}
+
+			// Legacy array option read-only fallback (do not re-add it; just read if present).
+			$settings = get_option( 'ppa_settings', null ); // CHANGED:
+			if ( is_array( $settings ) ) { // CHANGED:
+				foreach ( array( 'license_key', 'ppa_license_key', 'ppa_activation_key' ) as $sk ) { // CHANGED:
+					if ( isset( $settings[ $sk ] ) && is_string( $settings[ $sk ] ) ) { // CHANGED:
+						$v = trim( (string) $settings[ $sk ] ); // CHANGED:
+						if ( '' !== $v ) { return $v; } // CHANGED:
+					} // CHANGED:
+				} // CHANGED:
+			} // CHANGED:
+
+			return '';
+		}
+
+		/**
 		 * Resolve shared key from constant, option, or external filter. Never echo/log this.
 		 *
 		 * @return string
@@ -299,21 +340,60 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 		}
 
 		/**
-		 * Hard-require a non-empty shared key; stops with 500 if missing.
+		 * Decide whether shared-key fallback is allowed when license key is missing.
+		 *
+		 * Default: OFF (customer installs must use license key).
+		 *
+		 * @return bool
 		 */
-		private static function require_shared_key_or_500() {
-			$key = self::shared_key();
-			if ( '' === trim( (string) $key ) ) {
-				wp_send_json_error(
-					self::error_payload(
-						'server_misconfig',
-						500,
-						array( 'reason' => 'shared_key_missing' )
-					),
-					500
-				);
+		private static function allow_shared_key_fallback() { // CHANGED:
+			$flag = false;
+
+			if ( defined( 'PPA_ALLOW_SHARED_KEY_FALLBACK' ) ) { // CHANGED:
+				$flag = (bool) PPA_ALLOW_SHARED_KEY_FALLBACK; // CHANGED:
 			}
-			return $key;
+
+			// Filter wins if provided.
+			$flag = (bool) apply_filters( 'ppa_allow_shared_key_fallback', $flag, self::$endpoint ); // CHANGED:
+			return (bool) $flag;
+		}
+
+		/**
+		 * Resolve auth token for Django proxy.
+		 *
+		 * RULES (LOCKED IN):
+		 * - Primary: saved license key (ppa_license_key).
+		 * - Shared key is NOT required.
+		 * - Shared key fallback only if explicitly enabled (constant/filter).
+		 * - If no license key (and no allowed fallback), block the action (403 not_activated).
+		 *
+		 * @return string
+		 */
+		private static function require_auth_key_or_403() { // CHANGED:
+			$license = self::license_key(); // CHANGED:
+			if ( '' !== trim( (string) $license ) ) { // CHANGED:
+				return $license; // CHANGED:
+			} // CHANGED:
+
+			// Optional legacy/dev fallback: shared key only when explicitly allowed.
+			if ( self::allow_shared_key_fallback() ) { // CHANGED:
+				$shared = self::shared_key(); // CHANGED:
+				if ( '' !== trim( (string) $shared ) ) { // CHANGED:
+					return $shared; // CHANGED:
+				} // CHANGED:
+			} // CHANGED:
+
+			// Block. No secrets. Clear actionable message via error code parity.
+			wp_send_json_error( // CHANGED:
+				self::error_payload( // CHANGED:
+					'not_activated', // CHANGED:
+					403, // CHANGED:
+					array( 'reason' => 'license_key_missing' ) // CHANGED:
+				), // CHANGED:
+				403 // CHANGED:
+			); // CHANGED:
+
+			return ''; // unreachable, but keeps static analyzers happy. // CHANGED:
 		}
 
 		/**
@@ -326,7 +406,7 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			$headers = array(
 				'Content-Type'     => 'application/json; charset=utf-8',
 				'Accept'           => 'application/json; charset=utf-8',
-				'X-PPA-Key'        => self::require_shared_key_or_500(),
+				'X-PPA-Key'        => self::require_auth_key_or_403(), // CHANGED:
 				'User-Agent'       => 'PostPressAI-WordPress/' . ( defined( 'PPA_VERSION' ) ? PPA_VERSION : 'dev' ),
 				'X-Requested-With' => 'XMLHttpRequest',
 			);
