@@ -4,6 +4,7 @@
  * Path: assets/js/admin.js
  *
  * ========= CHANGE LOG =========
+ * 2026-01-03.1: FIX: De-dupe redundant title line in Outline/Body for Preview + Generate autofill. No endpoint/payload changes. // CHANGED:
  * 2025-12-30.1: UX: After successful Save Draft (store), open the draft edit screen in a new tab (popup-safe via about:blank) and render/update a "View Draft" link right after the Save Draft button. No endpoint/payload changes. // CHANGED:
  * 2025-12-22.1: Preview outline cleanup: stop rendering Outline in a <pre> block; render Outline via markdownToHtml() inside a <div class="ppa-outline"> to prevent pre overflow/wrap issues; broaden list hardening scope to the full preview pane so Outline + Body bullets render reliably. // CHANGED:
  *               No contract changes. No endpoint changes. No payload shape changes. Preview pane placement preserved. // CHANGED:
@@ -50,7 +51,7 @@
 (function () {
   'use strict';
 
-  var PPA_JS_VER = 'admin.v2025-12-30.1'; // CHANGED:
+  var PPA_JS_VER = 'admin.v2026-01-03.1'; // CHANGED:
 
   // Abort if composer root is missing (defensive)
   var root = document.getElementById('ppa-composer');
@@ -223,6 +224,151 @@
     t = t.replace(/[.?!…]+$/g, '').trim();
     return t;
   }
+
+  // --- Title De-Dupe helpers -------------------------------------------------
+  function normalizeComparableText(s) { // CHANGED:
+    var v = String(s || '');
+    v = v.replace(/<[^>]*>/g, ' ');
+    v = v.replace(/&nbsp;/gi, ' ');
+    v = v.replace(/\s+/g, ' ').trim().toLowerCase();
+    // remove punctuation (keep letters/numbers/spaces)
+    v = v.replace(/[“”"‘’'`~!@#$%^&*()_+\-=\[\]{};:\\|,.<>\/?…]/g, '');
+    v = v.replace(/\s+/g, ' ').trim();
+    return v;
+  }
+
+  function stripLeadingTitleFromMarkdown(md, title) { // CHANGED:
+    var t = normalizeComparableText(title);
+    var s = String(md || '');
+    if (!t || !s.trim()) return s;
+
+    var lines = s.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+
+    // Find first non-empty line
+    var i = 0;
+    while (i < lines.length && String(lines[i]).trim() === '') i++;
+    if (i >= lines.length) return s;
+
+    var line = String(lines[i]).trim();
+    var lineNorm = normalizeComparableText(line);
+
+    // Setext heading style: Title line + ==== or ----
+    if (i + 1 < lines.length) {
+      var next = String(lines[i + 1]).trim();
+      if ((/^={2,}$/.test(next) || /^-{2,}$/.test(next)) && lineNorm === t) {
+        lines.splice(i, 2);
+        if (i < lines.length && String(lines[i]).trim() === '') lines.splice(i, 1);
+        return lines.join('\n');
+      }
+    }
+
+    // ATX heading style: # Title
+    var m = line.match(/^#{1,6}\s+(.*)$/);
+    if (m && normalizeComparableText(m[1]) === t) {
+      lines.splice(i, 1);
+      if (i < lines.length && String(lines[i]).trim() === '') lines.splice(i, 1);
+      return lines.join('\n');
+    }
+
+    // "Title: ..." or "Post Title: ..."
+    var m2 = line.match(/^(?:post\s*)?title\s*[:\-]\s*(.+)$/i);
+    if (m2 && normalizeComparableText(m2[1]) === t) {
+      lines.splice(i, 1);
+      if (i < lines.length && String(lines[i]).trim() === '') lines.splice(i, 1);
+      return lines.join('\n');
+    }
+
+    // Bullet "Title: ..." or bullet containing only the title.
+    var m3 = line.match(/^([-*]|\d+\.)\s+(.*)$/);
+    if (m3) {
+      var rest = String(m3[2] || '').trim();
+      var m3b = rest.match(/^(?:post\s*)?title\s*[:\-]\s*(.+)$/i);
+      if (m3b && normalizeComparableText(m3b[1]) === t) {
+        lines.splice(i, 1);
+        if (i < lines.length && String(lines[i]).trim() === '') lines.splice(i, 1);
+        return lines.join('\n');
+      }
+      if (normalizeComparableText(rest) === t) {
+        lines.splice(i, 1);
+        if (i < lines.length && String(lines[i]).trim() === '') lines.splice(i, 1);
+        return lines.join('\n');
+      }
+    }
+
+    // Plain first line equals title — ONLY strip if followed by a blank line (reduces false positives).
+    if (lineNorm === t) {
+      var next2 = (i + 1 < lines.length) ? String(lines[i + 1]).trim() : '';
+      if (next2 === '') {
+        lines.splice(i, 1);
+        if (i < lines.length && String(lines[i]).trim() === '') lines.splice(i, 1);
+        return lines.join('\n');
+      }
+    }
+
+    return s;
+  }
+
+  function stripTitleFromOutline(outline, title) { // CHANGED:
+    var t = normalizeComparableText(title);
+    var s = String(outline || '');
+    if (!t || !s.trim()) return s;
+
+    var lines = s.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+
+    // Find first non-empty line
+    var i = 0;
+    while (i < lines.length && String(lines[i]).trim() === '') i++;
+    if (i >= lines.length) return s;
+
+    var line = String(lines[i]).trim();
+    var lineNorm = normalizeComparableText(line);
+
+    // Heading-style title line
+    var h = line.match(/^#{1,6}\s+(.*)$/);
+    if (h && normalizeComparableText(h[1]) === t) {
+      lines.splice(i, 1);
+      if (i < lines.length && String(lines[i]).trim() === '') lines.splice(i, 1);
+      return lines.join('\n');
+    }
+
+    // "Title: ..." or "Post Title: ..."
+    var m2 = line.match(/^(?:post\s*)?title\s*[:\-]\s*(.+)$/i);
+    if (m2 && normalizeComparableText(m2[1]) === t) {
+      lines.splice(i, 1);
+      if (i < lines.length && String(lines[i]).trim() === '') lines.splice(i, 1);
+      return lines.join('\n');
+    }
+
+    // Bullet containing "Title: ..." or bullet containing only the title
+    var m3 = line.match(/^([-*]|\d+\.)\s+(.*)$/);
+    if (m3) {
+      var rest = String(m3[2] || '').trim();
+      var m3b = rest.match(/^(?:post\s*)?title\s*[:\-]\s*(.+)$/i);
+      if (m3b && normalizeComparableText(m3b[1]) === t) {
+        lines.splice(i, 1);
+        if (i < lines.length && String(lines[i]).trim() === '') lines.splice(i, 1);
+        return lines.join('\n');
+      }
+      if (normalizeComparableText(rest) === t) {
+        lines.splice(i, 1);
+        if (i < lines.length && String(lines[i]).trim() === '') lines.splice(i, 1);
+        return lines.join('\n');
+      }
+    }
+
+    // Plain first line equals title — ONLY strip if followed by a blank line.
+    if (lineNorm === t) {
+      var next2 = (i + 1 < lines.length) ? String(lines[i + 1]).trim() : '';
+      if (next2 === '') {
+        lines.splice(i, 1);
+        if (i < lines.length && String(lines[i]).trim() === '') lines.splice(i, 1);
+        return lines.join('\n');
+      }
+    }
+
+    return s;
+  }
+  // --------------------------------------------------------------------------
 
   function sanitizeSlug(s) {
     var v = String(s || '').trim().toLowerCase();
@@ -621,6 +767,12 @@
       meta = result.meta || result.seo || null;
     }
 
+    title = ppaCleanTitle(title); // CHANGED:
+    if (title) { // CHANGED:
+      outline = stripTitleFromOutline(outline, title); // CHANGED:
+      bodyMd = stripLeadingTitleFromMarkdown(bodyMd, title); // CHANGED:
+    } // CHANGED:
+
     var html = '';
     html += '<div class="ppa-preview">';
     if (title) html += '<h2>' + escHtml(title) + '</h2>';
@@ -657,6 +809,7 @@
 
     var html = '';
     if (result && typeof result === 'object' && result.html) {
+      // If backend sends HTML, we honor it (no guessing). // CHANGED:
       html = String(result.html);
     } else {
       html = buildPreviewHtml(result);
@@ -693,7 +846,8 @@
     if (!result || typeof result !== 'object') return { titleFilled: false, excerptFilled: false, slugFilled: false };
 
     var title = ppaCleanTitle(result.title || '');
-    var bodyMd = String(result.body_markdown || result.body || '');
+    var bodyMdRaw = String(result.body_markdown || result.body || ''); // CHANGED:
+    var bodyMd = title ? stripLeadingTitleFromMarkdown(bodyMdRaw, title) : bodyMdRaw; // CHANGED:
     var meta = result.meta || result.seo || {};
 
     var filled = { titleFilled: false, excerptFilled: false, slugFilled: false };
@@ -707,7 +861,7 @@
     // Fill content if empty
     var contentEl = $('#ppa-content') || $('#content');
     if (contentEl && (!String(contentEl.value || '').trim()) && bodyMd) {
-      contentEl.value = markdownToHtml(bodyMd);
+      contentEl.value = markdownToHtml(bodyMd); // CHANGED:
     }
 
     // Excerpt
