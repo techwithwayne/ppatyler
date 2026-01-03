@@ -24,6 +24,8 @@
  * 2026-01-03 • FIX: Interpret activation.activated safely when backend returns string/int values.             // CHANGED:
  * 2026-01-03 • CLEAN: Remove success-only preview/debug_headers logging (failures only).                      // CHANGED:
  *
+ * 2026-01-03 • FIX: Ignore cached gate "unknown" so opt:fresh can immediately unblock after verify/activate.   // CHANGED:
+ *
  * 2026-01-02 • CLEAN: Remove success-only debug.log spam for generate/store django_url + store payload_source. // CHANGED:
  *
  * 2025-12-30 • FIX: Normalize Django base URL (auto-prepend https:// when scheme missing + hard fallback)
@@ -602,13 +604,25 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 		}
 
 		/**
+		 * Canonical gate max-age seconds (single source of truth).                // CHANGED:
+		 *
+		 * @return int
+		 */
+		private static function license_gate_max_age_seconds() { // CHANGED:
+			$max_age = (int) apply_filters( 'ppa_license_gate_max_age_seconds', 900, self::$endpoint ); // CHANGED:
+			if ( $max_age < 30 ) { $max_age = 30; } // CHANGED:
+			return $max_age; // CHANGED:
+		} // CHANGED:
+
+		/**
 		 * Determine if a cached license result is "fresh enough" to trust for gating.
 		 *
 		 * @param array $res
+		 * @param int|null $max_age Optional override (already-sanitized).         // CHANGED:
 		 * @return bool
 		 */
-		private static function license_cache_is_fresh( $res ) { // CHANGED:
-			$max_age = (int) apply_filters( 'ppa_license_gate_max_age_seconds', 900, self::$endpoint ); // CHANGED:
+		private static function license_cache_is_fresh( $res, $max_age = null ) { // CHANGED:
+			$max_age = ( $max_age === null ) ? self::license_gate_max_age_seconds() : (int) $max_age; // CHANGED:
 			if ( $max_age < 30 ) { $max_age = 30; } // CHANGED:
 
 			$now         = time(); // CHANGED:
@@ -794,95 +808,112 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 		}
 
 		/**
+		 * CHANGED: Use persisted license options as a fallback truth source for gating.
+		 * This prevents false "unknown" when transients are missing or object cache is quirky.
+		 *
+		 * Requires:
+		 * - ppa_license_state === 'active' or 'inactive'
+		 * - ppa_license_active_site matches this site (normalized)
+		 * - ppa_license_last_checked_at is fresh (within gate max age)
+		 *
+		 * @param int    $max_age    Canonical max-age seconds (already sanitized). // CHANGED:
+		 * @param string $site_here  Normalized current site string.               // CHANGED:
+		 * @return array|false array{state:string,reason:string,source:string} or false if not usable
+		 */
+		private static function license_options_truth_if_fresh( $max_age, $site_here ) { // CHANGED:
+			$max_age  = (int) $max_age; // CHANGED:
+			$site_here = is_string( $site_here ) ? trim( $site_here ) : ''; // CHANGED:
+
+			if ( $max_age <= 0 || '' === $site_here ) { // CHANGED:
+				return false; // CHANGED:
+			} // CHANGED:
+
+			$state_raw = get_option( 'ppa_license_state', '' ); // CHANGED:
+			$state     = is_string( $state_raw ) ? strtolower( trim( $state_raw ) ) : ''; // CHANGED:
+			if ( $state !== 'active' && $state !== 'inactive' ) { // CHANGED:
+				return false; // CHANGED:
+			} // CHANGED:
+
+			$site_opt_raw = get_option( 'ppa_license_active_site', '' ); // CHANGED:
+			$site_opt     = is_string( $site_opt_raw ) ? trim( $site_opt_raw ) : ''; // CHANGED:
+			if ( '' === $site_opt ) { // CHANGED:
+				// Safety: do not trust "active" without a site binding. // CHANGED:
+				return false; // CHANGED:
+			} // CHANGED:
+
+			$site_norm = self::normalize_site_url( $site_opt ); // CHANGED:
+			if ( '' === $site_norm || $site_norm !== $site_here ) { // CHANGED:
+				return false; // CHANGED:
+			} // CHANGED:
+
+			$checked_at = (int) get_option( 'ppa_license_last_checked_at', 0 ); // CHANGED:
+			if ( $checked_at <= 0 ) { // CHANGED:
+				return false; // CHANGED:
+			} // CHANGED:
+
+			if ( ( time() - $checked_at ) > $max_age ) { // CHANGED:
+				return false; // CHANGED:
+			} // CHANGED:
+
+			return array( // CHANGED:
+				'state'  => $state, // CHANGED:
+				'reason' => ( $state === 'active' ? 'option_active' : 'option_inactive' ), // CHANGED:
+				'source' => 'opt:fresh', // CHANGED:
+			); // CHANGED:
+		} // CHANGED:
+
+		/**
 		 * Rate-limited truth resolver used by the proxy gate.
 		 *
 		 * @return array{state:string,reason:string,source:string}
 		 */
-		
-                /**
-                 * CHANGED: Use persisted license options as a fallback truth source for gating.
-                 * This prevents false "unknown" when transients are missing or object cache is quirky.
-                 *
-                 * Requires:
-                 * - ppa_license_state === 'active' or 'inactive'
-                 * - ppa_license_active_site matches this site (normalized)
-                 * - ppa_license_last_checked_at is fresh (within gate max age)
-                 *
-                 * @return array|false array{state:string,reason:string,source:string} or false if not usable
-                 */
-                private static function license_options_truth_if_fresh() { // CHANGED:
-                        $state_raw = get_option( 'ppa_license_state', '' ); // CHANGED:
-                        $state     = is_string( $state_raw ) ? strtolower( trim( $state_raw ) ) : ''; // CHANGED:
-                        if ( $state !== 'active' && $state !== 'inactive' ) { // CHANGED:
-                                return false; // CHANGED:
-                        } // CHANGED:
+		private static function get_license_truth_for_gate() { // CHANGED:
+			$max_age  = self::license_gate_max_age_seconds(); // CHANGED:
+			$ttl_gate = min( 60, $max_age ); // CHANGED:
+			if ( $ttl_gate < 15 ) { $ttl_gate = 15; } // CHANGED:
 
-                        $site_opt_raw = get_option( 'ppa_license_active_site', '' ); // CHANGED:
-                        $site_opt     = is_string( $site_opt_raw ) ? trim( $site_opt_raw ) : ''; // CHANGED:
-                        if ( '' === $site_opt ) { // CHANGED:
-                                // Safety: do not trust "active" without a site binding. // CHANGED:
-                                return false; // CHANGED:
-                        } // CHANGED:
+			$site_here = self::current_site_url_norm(); // CHANGED:
 
-                        $site_here = self::current_site_url_norm(); // CHANGED:
-                        $site_norm = self::normalize_site_url( $site_opt ); // CHANGED:
-                        if ( '' === $site_norm || $site_norm !== $site_here ) { // CHANGED:
-                                return false; // CHANGED:
-                        } // CHANGED:
-
-                        $checked_at = (int) get_option( 'ppa_license_last_checked_at', 0 ); // CHANGED:
-                        if ( $checked_at <= 0 ) { // CHANGED:
-                                return false; // CHANGED:
-                        } // CHANGED:
-
-                        $max_age = (int) apply_filters( 'ppa_license_gate_max_age_seconds', 900, self::$endpoint ); // CHANGED:
-                        if ( $max_age < 30 ) { $max_age = 30; } // CHANGED:
-                        if ( ( time() - $checked_at ) > $max_age ) { // CHANGED:
-                                return false; // CHANGED:
-                        } // CHANGED:
-
-                        return array( // CHANGED:
-                                'state'  => $state, // CHANGED:
-                                'reason' => ( $state === 'active' ? 'option_active' : 'option_inactive' ), // CHANGED:
-                                'source' => 'opt:fresh', // CHANGED:
-                        ); // CHANGED:
-                } // CHANGED:
-
-
-private static function get_license_truth_for_gate() { // CHANGED:
 			$cached = get_transient( 'ppa_license_gate_state' ); // CHANGED:
 
-			// CHANGED: Accept either array or string transient shapes.
+			// CHANGED: Only trust cached gate state when it is explicitly active/inactive.
+			// If cached is "unknown" (array or string), DO NOT early-return; allow opt:fresh to unblock.
 			if ( is_array( $cached ) && isset( $cached['state'] ) ) { // CHANGED:
-				return $cached; // CHANGED:
+				$s = strtolower( trim( (string) $cached['state'] ) ); // CHANGED:
+				if ( $s === 'active' || $s === 'inactive' ) { // CHANGED:
+					$cached['state'] = $s; // CHANGED:
+					return $cached; // CHANGED:
+				} // CHANGED:
 			} // CHANGED:
 			if ( is_string( $cached ) && $cached !== '' ) { // CHANGED:
-				return array( 'state' => strtolower( trim( $cached ) ), 'reason' => 'cache_string', 'source' => 'gate' ); // CHANGED:
+				$s = strtolower( trim( $cached ) ); // CHANGED:
+				if ( $s === 'active' || $s === 'inactive' ) { // CHANGED:
+					return array( 'state' => $s, 'reason' => 'cache_string', 'source' => 'gate' ); // CHANGED:
+				} // CHANGED:
 			} // CHANGED:
 
 			$last = get_transient( 'ppa_license_last_result' ); // CHANGED:
-			if ( is_array( $last ) && self::license_cache_is_fresh( $last ) ) { // CHANGED:
+			if ( is_array( $last ) && self::license_cache_is_fresh( $last, $max_age ) ) { // CHANGED:
 				$truth = self::interpret_license_truth( $last ); // CHANGED:
 				$truth['source'] = 'cache:fresh'; // CHANGED:
-				set_transient( 'ppa_license_gate_state', $truth, 60 ); // CHANGED:
+				set_transient( 'ppa_license_gate_state', $truth, $ttl_gate ); // CHANGED:
 				return $truth; // CHANGED:
 			} // CHANGED:
 
-			
-                        $opt_truth = self::license_options_truth_if_fresh(); // CHANGED:
-                        if ( is_array( $opt_truth ) && isset( $opt_truth['state'] ) ) { // CHANGED:
-                                set_transient( 'ppa_license_gate_state', $opt_truth, 60 ); // CHANGED:
-                                return $opt_truth; // CHANGED:
-                        } // CHANGED:
+			$opt_truth = self::license_options_truth_if_fresh( $max_age, $site_here ); // CHANGED:
+			if ( is_array( $opt_truth ) && isset( $opt_truth['state'] ) ) { // CHANGED:
+				set_transient( 'ppa_license_gate_state', $opt_truth, $ttl_gate ); // CHANGED:
+				return $opt_truth; // CHANGED:
+			} // CHANGED:
 
-$min_interval = (int) apply_filters( 'ppa_license_gate_verify_min_interval', 60, self::$endpoint ); // CHANGED:
+			$min_interval = (int) apply_filters( 'ppa_license_gate_verify_min_interval', 60, self::$endpoint ); // CHANGED:
 			if ( $min_interval < 15 ) { $min_interval = 15; } // CHANGED:
 
 			$last_try = (int) get_transient( 'ppa_license_gate_last_verify_at' ); // CHANGED:
 			if ( $last_try > 0 && ( time() - $last_try ) < $min_interval ) { // CHANGED:
 				$recent = get_transient( 'ppa_license_gate_last_verify_state' ); // CHANGED:
 				if ( is_array( $recent ) && isset( $recent['state'] ) ) { // CHANGED:
-					set_transient( 'ppa_license_gate_state', $recent, 30 ); // CHANGED:
+					set_transient( 'ppa_license_gate_state', $recent, min( 30, $ttl_gate ) ); // CHANGED:
 					return $recent; // CHANGED:
 				} // CHANGED:
 				return array( 'state' => 'unknown', 'reason' => 'verify_rate_limited', 'source' => 'gate' ); // CHANGED:
@@ -891,7 +922,7 @@ $min_interval = (int) apply_filters( 'ppa_license_gate_verify_min_interval', 60,
 			set_transient( 'ppa_license_gate_last_verify_at', time(), $min_interval ); // CHANGED:
 			$truth = self::server_verify_license_truth(); // CHANGED:
 			set_transient( 'ppa_license_gate_last_verify_state', $truth, 5 * MINUTE_IN_SECONDS ); // CHANGED:
-			set_transient( 'ppa_license_gate_state', $truth, 60 ); // CHANGED:
+			set_transient( 'ppa_license_gate_state', $truth, $ttl_gate ); // CHANGED:
 			return $truth; // CHANGED:
 		}
 
