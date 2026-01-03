@@ -22,6 +22,10 @@
  *            UX: Show a masked warning when a Connection Key is detected (wp-config/option) because it can    // CHANGED:
  *                explain “Settings not active but Composer still works”. (No secrets shown.)                 // CHANGED:
  *
+ * 2026-01-03: FIX: Auto-heal persisted license options from cached ppa_license_last_result when admin loads   // CHANGED:
+ *            Settings (prevents stale unknown/inactive when server-truth cache is already OK).               // CHANGED:
+ *            No network calls; no logs; only sync if site_url matches this site.                             // CHANGED:
+ *
  * 2026-01-01: CLEAN: Reduce Settings debug.log noise — log failures only (no start/ok chatter).                 // CHANGED:
  * 2026-01-01: FIX: Make init() + register_settings() idempotent (prevents double hook/registration).          // CHANGED:
  * 2026-01-01: HARDEN: Sanitize license key by stripping control chars + whitespace (paste-safe).             // CHANGED:
@@ -478,6 +482,75 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 		}                                                                                           // CHANGED:
 
 		/**
+		 * CHANGED: Auto-heal persisted license state from cached last_result (no network calls).  // CHANGED:
+		 * Only runs on Settings page render, and only if the cached site_url matches this site.   // CHANGED:
+		 *
+		 * @param mixed $last
+		 */
+		private static function sync_persisted_state_from_cached_last_result( $last ) {            // CHANGED:
+			if ( ! is_array( $last ) ) {                                                            // CHANGED:
+				return;                                                                              // CHANGED:
+			}                                                                                        // CHANGED:
+
+			$ok = ( isset( $last['ok'] ) && true === $last['ok'] );                                  // CHANGED:
+			if ( ! $ok ) {                                                                           // CHANGED:
+				return;                                                                              // CHANGED:
+			}                                                                                        // CHANGED:
+
+			$state = self::derive_activation_state_from_result_only( $last );                        // CHANGED:
+			if ( ! in_array( $state, array( 'active', 'inactive' ), true ) ) {                       // CHANGED:
+				return;                                                                              // CHANGED:
+			}                                                                                        // CHANGED:
+
+			$data = isset( $last['data'] ) && is_array( $last['data'] ) ? $last['data'] : array();   // CHANGED:
+			$act  = isset( $data['activation'] ) && is_array( $data['activation'] ) ? $data['activation'] : array(); // CHANGED:
+
+			$home = untrailingslashit( home_url( '/' ) );                                             // CHANGED:
+
+			// Guard: if server returns a site_url and it doesn't match this site, do NOT sync.      // CHANGED:
+			if ( isset( $act['site_url'] ) && is_string( $act['site_url'] ) && '' !== trim( $act['site_url'] ) ) { // CHANGED:
+				$server_site = untrailingslashit( trim( (string) $act['site_url'] ) );              // CHANGED:
+				if ( '' !== $server_site && $server_site !== $home ) {                               // CHANGED:
+					return;                                                                          // CHANGED:
+				}                                                                                    // CHANGED:
+			}                                                                                        // CHANGED:
+
+			// Clear any prior error code because cached result is OK.                                // CHANGED:
+			$cur_err = get_option( self::OPT_LICENSE_LAST_ERROR_CODE, '' );                          // CHANGED:
+			$cur_err = is_string( $cur_err ) ? $cur_err : '';                                        // CHANGED:
+			if ( '' !== $cur_err ) {                                                                 // CHANGED:
+				update_option( self::OPT_LICENSE_LAST_ERROR_CODE, '', false );                        // CHANGED:
+			}                                                                                        // CHANGED:
+
+			// Update persisted state if needed.                                                      // CHANGED:
+			$cur_state = get_option( self::OPT_LICENSE_STATE, 'unknown' );                           // CHANGED:
+			$cur_state = is_string( $cur_state ) ? strtolower( trim( $cur_state ) ) : 'unknown';     // CHANGED:
+			if ( $cur_state !== $state ) {                                                           // CHANGED:
+				update_option( self::OPT_LICENSE_STATE, $state, false );                              // CHANGED:
+			}                                                                                        // CHANGED:
+
+			// Sync "active on this site" flag for UI convenience.                                    // CHANGED:
+			if ( 'active' === $state ) {                                                             // CHANGED:
+				update_option( self::OPT_ACTIVE_SITE, home_url( '/' ), false );                       // CHANGED:
+			} else {                                                                                 // CHANGED:
+				delete_option( self::OPT_ACTIVE_SITE );                                               // CHANGED:
+			}                                                                                        // CHANGED:
+
+			// Only advance checked_at if server has a newer last_verified_at timestamp.              // CHANGED:
+			$existing_checked = (int) get_option( self::OPT_LICENSE_LAST_CHECKED_AT, 0 );             // CHANGED:
+			$verified_ts      = 0;                                                                    // CHANGED:
+			if ( isset( $act['last_verified_at'] ) && is_string( $act['last_verified_at'] ) && '' !== trim( $act['last_verified_at'] ) ) { // CHANGED:
+				$ts = strtotime( (string) $act['last_verified_at'] );                                 // CHANGED:
+				if ( false !== $ts && $ts > 0 ) {                                                     // CHANGED:
+					$verified_ts = (int) $ts;                                                         // CHANGED:
+				}                                                                                    // CHANGED:
+			}                                                                                        // CHANGED:
+			if ( $verified_ts > 0 && $verified_ts > $existing_checked ) {                              // CHANGED:
+				update_option( self::OPT_LICENSE_LAST_CHECKED_AT, $verified_ts, false );               // CHANGED:
+			}                                                                                        // CHANGED:
+		}                                                                                           // CHANGED:
+
+		/**
 		 * CHANGED: Persist license state in options (controller will enforce next).               // CHANGED:
 		 * - Stores: state + last_error + checked_at (no secrets).                                 // CHANGED:
 		 * - Syncs OPT_ACTIVE_SITE on Verify using server truth (ignores old local flag).          // CHANGED:
@@ -508,18 +581,30 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 				update_option( self::OPT_LICENSE_STATE, $state, false );                            // CHANGED:
 			}                                                                                       // CHANGED:
 
+			// Guard: only mark active-site if server site_url matches this site (no guessing).      // CHANGED:
+			$home = untrailingslashit( home_url( '/' ) );                                            // CHANGED:
+			$server_site_ok = true;                                                                  // CHANGED:
+			if ( is_array( $result ) && isset( $result['data']['activation']['site_url'] ) && is_string( $result['data']['activation']['site_url'] ) ) { // CHANGED:
+				$server_site = untrailingslashit( trim( (string) $result['data']['activation']['site_url'] ) ); // CHANGED:
+				if ( '' !== $server_site && $server_site !== $home ) {                               // CHANGED:
+					$server_site_ok = false;                                                         // CHANGED:
+				}                                                                                    // CHANGED:
+			}                                                                                        // CHANGED:
+
 			// Sync "active on this site" local flag from server truth on verify.                    // CHANGED:
 			if ( $ok && 'verify' === $action ) {                                                    // CHANGED:
-				if ( 'active' === $state ) {                                                        // CHANGED:
+				if ( 'active' === $state && $server_site_ok ) {                                      // CHANGED:
 					update_option( self::OPT_ACTIVE_SITE, home_url( '/' ), false );                 // CHANGED:
 				} elseif ( 'inactive' === $state ) {                                                // CHANGED:
 					delete_option( self::OPT_ACTIVE_SITE );                                         // CHANGED:
 				}                                                                                   // CHANGED:
 			}                                                                                       // CHANGED:
 
-			// On explicit success actions, keep legacy behavior.                                     // CHANGED:
+			// On explicit success actions, keep legacy behavior (but still guarded).                // CHANGED:
 			if ( $ok && 'activate' === $action ) {                                                  // CHANGED:
-				update_option( self::OPT_ACTIVE_SITE, home_url( '/' ), false );                     // CHANGED:
+				if ( $server_site_ok ) {                                                             // CHANGED:
+					update_option( self::OPT_ACTIVE_SITE, home_url( '/' ), false );                 // CHANGED:
+				}                                                                                   // CHANGED:
 			} elseif ( $ok && 'deactivate' === $action ) {                                          // CHANGED:
 				delete_option( self::OPT_ACTIVE_SITE );                                             // CHANGED:
 			}                                                                                       // CHANGED:
@@ -997,6 +1082,9 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 			}
 
 			$last = get_transient( self::TRANSIENT_LAST_LIC );
+
+			// CHANGED: Heal persisted options from cached server truth (no network calls).
+			self::sync_persisted_state_from_cached_last_result( $last ); // CHANGED:
 
 			$val_license = (string) get_option( self::OPT_LICENSE_KEY, '' );
 			$val_license = self::sanitize_license_key( $val_license );
