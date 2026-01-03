@@ -14,6 +14,9 @@
  * - Connection Key is legacy; if present we use it, otherwise we use License Key as the auth key. // CHANGED:
  *
  * ========= CHANGE LOG =========
+ * 2026-01-03: FIX: Prefer License Key as X-PPA-Key for Settings actions even if legacy ppa_shared_key option exists.
+ *             Constant/filter still override. Keeps customer installs from relying on ppa_shared_key.          // CHANGED:
+ *
  * 2026-01-01: CLEAN: Reduce Settings debug.log noise — log failures only (no start/ok chatter).                 // CHANGED:
  * 2026-01-01: FIX: Make init() + register_settings() idempotent (prevents double hook/registration).          // CHANGED:
  * 2026-01-01: HARDEN: Sanitize license key by stripping control chars + whitespace (paste-safe).             // CHANGED:
@@ -487,32 +490,37 @@ if ( ! class_exists( 'PPA_Admin_Settings' ) ) {
 		}
 
 		private static function resolve_shared_key() {
-			if ( defined( 'PPA_SHARED_KEY' ) && PPA_SHARED_KEY ) {
-				return trim( (string) PPA_SHARED_KEY );
-			}
+			// 1) Hard override for ops/dev (constant) stays highest priority.                          // CHANGED:
+			if ( defined( 'PPA_SHARED_KEY' ) && PPA_SHARED_KEY ) {                                   // CHANGED:
+				return trim( (string) PPA_SHARED_KEY );                                              // CHANGED:
+			}                                                                                         // CHANGED:
 
-			$opt = get_option( 'ppa_shared_key', '' );
-			if ( is_string( $opt ) ) {
-				$opt = trim( $opt );
-				if ( '' !== $opt ) {
-					return $opt;
-				}
-			}
+			// 2) Filter override stays next (hosting/mu-plugin/etc).                                  // CHANGED:
+			$filtered = apply_filters( 'ppa_shared_key', '' );                                        // CHANGED:
+			if ( is_string( $filtered ) ) {                                                           // CHANGED:
+				$filtered = trim( $filtered );                                                        // CHANGED:
+				if ( '' !== $filtered ) {                                                              // CHANGED:
+					return $filtered;                                                                  // CHANGED:
+				}                                                                                      // CHANGED:
+			}                                                                                          // CHANGED:
 
-			$filtered = apply_filters( 'ppa_shared_key', '' );
-			if ( is_string( $filtered ) ) {
-				$filtered = trim( $filtered );
-				if ( '' !== $filtered ) {
-					return $filtered;
-				}
-			}
+			// 3) Customer default: use the saved License Key as X-PPA-Key.                             // CHANGED:
+			//    This prevents hidden legacy ppa_shared_key option values from overriding real licenses. // CHANGED:
+			$lic = self::get_license_key();                                                            // CHANGED:
+			if ( '' !== $lic ) {                                                                       // CHANGED:
+				return $lic;                                                                           // CHANGED:
+			}                                                                                          // CHANGED:
 
-			$lic = self::get_license_key();
-			if ( '' !== $lic ) {
-				return $lic;
-			}
+			// 4) Last-resort legacy fallback: old installs that only had ppa_shared_key.               // CHANGED:
+			$opt = get_option( 'ppa_shared_key', '' );                                                  // CHANGED:
+			if ( is_string( $opt ) ) {                                                                  // CHANGED:
+				$opt = trim( $opt );                                                                    // CHANGED:
+				if ( '' !== $opt ) {                                                                    // CHANGED:
+					return $opt;                                                                         // CHANGED:
+				}                                                                                      // CHANGED:
+			}                                                                                          // CHANGED:
 
-			return '';
+			return '';                                                                                  // CHANGED:
 		}
 
 		private static function get_license_key() {
