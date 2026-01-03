@@ -7,6 +7,8 @@
  * /wp-content/plugins/postpress-ai/inc/class-ppa-controller.php
  *
  * CHANGE LOG
+ * 2026-01-03 • REFACTOR: Modularize endpoint flow (preflight + remote call + parse helpers). No contract changes. // CHANGED:
+ *
  * 2026-01-03 • FIX: Gate truth normalization (accept array OR string transient shapes).                        // CHANGED:
  * 2026-01-03 • FIX: Throttle gate-block logging (failure-only, no spam).                                       // CHANGED:
  * 2026-01-03 • ADD: Sticky proxy capability flag ppa_proxy_license_header_ok (1/0).                            // CHANGED:
@@ -88,7 +90,7 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 		}
 
 		/* ─────────────────────────────────────────────────────────────────────
-		 * Internals
+		 * Internals (errors + logging)
 		 * ──────────────────────────────────────────────────────────────────── */
 
 		/**
@@ -136,6 +138,40 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 		} // CHANGED:
 
 		/**
+		 * Helper: only log non-json when request failed (non-2xx).                 // CHANGED:
+		 *
+		 * @param string $label
+		 * @param int    $code
+		 * @return void
+		 */
+		private static function maybe_log_non_json_failure( $label, $code ) { // CHANGED:
+			$code  = (int) $code; // CHANGED:
+			$label = sanitize_key( (string) $label ); // CHANGED:
+			if ( $code < 200 || $code >= 300 ) { // CHANGED:
+				error_log( 'PPA: ' . $label . ' http ' . $code . ' (non-json)' ); // CHANGED:
+			} // CHANGED:
+		} // CHANGED:
+
+		/**
+		 * Helper: only log http line when request failed (non-2xx).                // CHANGED:
+		 *
+		 * @param string $label
+		 * @param int    $code
+		 * @return void
+		 */
+		private static function maybe_log_http_failure( $label, $code ) { // CHANGED:
+			$code  = (int) $code; // CHANGED:
+			$label = sanitize_key( (string) $label ); // CHANGED:
+			if ( $code < 200 || $code >= 300 ) { // CHANGED:
+				error_log( 'PPA: ' . $label . ' http ' . $code ); // CHANGED:
+			} // CHANGED:
+		} // CHANGED:
+
+		/* ─────────────────────────────────────────────────────────────────────
+		 * Internals (request preflight)
+		 * ──────────────────────────────────────────────────────────────────── */
+
+		/**
 		 * Enforce POST method; send 405 if not.
 		 */
 		private static function must_post() { // CHANGED:
@@ -178,6 +214,33 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 				);
 			}
 		}
+
+		/**
+		 * Preflight for any endpoint: capability, POST-only, nonce, optional license gate. // CHANGED:
+		 *
+		 * @param string $endpoint
+		 * @param bool   $enforce_gate
+		 * @return void
+		 */
+		private static function preflight_or_die( $endpoint, $enforce_gate ) { // CHANGED:
+			self::$endpoint = sanitize_key( (string) $endpoint ); // CHANGED:
+			if ( self::$endpoint === '' ) { self::$endpoint = 'preview'; } // CHANGED:
+
+			if ( ! current_user_can( 'edit_posts' ) ) {
+				wp_send_json_error( self::error_payload( 'forbidden', 403, array( 'reason' => 'capability_missing' ) ), 403 );
+			}
+
+			self::must_post();
+			self::verify_nonce_or_forbid();
+
+			if ( $enforce_gate ) { // CHANGED:
+				self::enforce_license_gate_or_block(); // CHANGED:
+			} // CHANGED:
+		} // CHANGED:
+
+		/* ─────────────────────────────────────────────────────────────────────
+		 * Internals (IO + remote calls)
+		 * ──────────────────────────────────────────────────────────────────── */
 
 		/**
 		 * Read incoming request body as JSON (robust).
@@ -259,6 +322,78 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 				'content_type' => $content_type,
 			);
 		}
+
+		/**
+		 * Helper: die with request_failed payload when wp_remote_* returns WP_Error. // CHANGED:
+		 *
+		 * @param string   $label
+		 * @param \WP_Error $err
+		 * @return void
+		 */
+		private static function wp_error_or_die( $label, $err ) { // CHANGED:
+			$label = sanitize_key( (string) $label ); // CHANGED:
+			error_log( 'PPA: ' . $label . ' request_failed' ); // CHANGED: failure-only
+			wp_send_json_error( // CHANGED:
+				self::error_payload( // CHANGED:
+					'request_failed', // CHANGED:
+					500, // CHANGED:
+					array( 'detail' => is_object( $err ) ? $err->get_error_message() : '' ) // CHANGED:
+				), // CHANGED:
+				500 // CHANGED:
+			); // CHANGED:
+		} // CHANGED:
+
+		/**
+		 * Helper: perform a remote call and parse JSON (but do NOT send).          // CHANGED:
+		 *
+		 * @param string $method 'POST'|'GET'
+		 * @param string $url
+		 * @param array  $args
+		 * @return array{is_error:bool,code:int,body:string,is_json:bool,json:array}
+		 */
+		private static function remote_call_parsed( $method, $url, $args ) { // CHANGED:
+			$method = strtoupper( (string) $method ); // CHANGED:
+			$url    = (string) $url; // CHANGED:
+			$args   = is_array( $args ) ? $args : array(); // CHANGED:
+
+			$resp = ( $method === 'GET' ) ? wp_remote_get( $url, $args ) : wp_remote_post( $url, $args ); // CHANGED:
+			if ( is_wp_error( $resp ) ) { // CHANGED:
+				return array( // CHANGED:
+					'is_error' => true, // CHANGED:
+					'code'     => 0, // CHANGED:
+					'body'     => '', // CHANGED:
+					'is_json'  => false, // CHANGED:
+					'json'     => array(), // CHANGED:
+					'error'    => $resp, // CHANGED:
+				); // CHANGED:
+			} // CHANGED:
+
+			$code = (int) wp_remote_retrieve_response_code( $resp ); // CHANGED:
+			$body = (string) wp_remote_retrieve_body( $resp ); // CHANGED:
+
+			$json = json_decode( $body, true ); // CHANGED:
+			if ( JSON_ERROR_NONE !== json_last_error() || ! is_array( $json ) ) { // CHANGED:
+				return array( // CHANGED:
+					'is_error' => false, // CHANGED:
+					'code'     => $code, // CHANGED:
+					'body'     => $body, // CHANGED:
+					'is_json'  => false, // CHANGED:
+					'json'     => array(), // CHANGED:
+				); // CHANGED:
+			} // CHANGED:
+
+			return array( // CHANGED:
+				'is_error' => false, // CHANGED:
+				'code'     => $code, // CHANGED:
+				'body'     => $body, // CHANGED:
+				'is_json'  => true, // CHANGED:
+				'json'     => $json, // CHANGED:
+			); // CHANGED:
+		} // CHANGED:
+
+		/* ─────────────────────────────────────────────────────────────────────
+		 * Internals (Django URL + auth + license gate)
+		 * ──────────────────────────────────────────────────────────────────── */
 
 		/**
 		 * CHANGED: Normalize a Django base URL into a safe, https-schemed, no-trailing-slash URL.
@@ -821,7 +956,7 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 		 * @return array|false array{state:string,reason:string,source:string} or false if not usable
 		 */
 		private static function license_options_truth_if_fresh( $max_age, $site_here ) { // CHANGED:
-			$max_age  = (int) $max_age; // CHANGED:
+			$max_age   = (int) $max_age; // CHANGED:
 			$site_here = is_string( $site_here ) ? trim( $site_here ) : ''; // CHANGED:
 
 			if ( $max_age <= 0 || '' === $site_here ) { // CHANGED:
@@ -1168,44 +1303,30 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 		 * ──────────────────────────────────────────────────────────────────── */
 
 		public static function ajax_preview() {
-			self::$endpoint = 'preview';
-
-			if ( ! current_user_can( 'edit_posts' ) ) {
-				wp_send_json_error( self::error_payload( 'forbidden', 403, array( 'reason' => 'capability_missing' ) ), 403 );
-			}
-
-			self::must_post();
-			self::verify_nonce_or_forbid();
-
-			self::enforce_license_gate_or_block(); // CHANGED:
+			self::preflight_or_die( 'preview', true ); // CHANGED:
 
 			$payload = self::read_json_body();
 			$base    = self::django_base();
+			$url     = $base . '/preview/'; // CHANGED:
 
-			$django_url = $base . '/preview/';
+			$r = self::remote_call_parsed( 'POST', $url, self::build_args( $payload['raw'] ) ); // CHANGED:
+			if ( ! empty( $r['is_error'] ) ) { // CHANGED:
+				self::wp_error_or_die( 'preview', $r['error'] ); // CHANGED:
+			} // CHANGED:
 
-			$response = wp_remote_post( $django_url, self::build_args( $payload['raw'] ) );
+			$code = (int) $r['code']; // CHANGED:
 
-			if ( is_wp_error( $response ) ) {
-				error_log( 'PPA: preview request_failed' ); // failure-only
-				wp_send_json_error( self::error_payload( 'request_failed', 500, array( 'detail' => $response->get_error_message() ) ), 500 );
-			}
+			if ( empty( $r['is_json'] ) ) { // CHANGED:
+				self::maybe_log_non_json_failure( 'preview', $code ); // CHANGED:
+				wp_send_json_success( array( 'raw' => (string) $r['body'] ), $code ); // CHANGED:
+			} // CHANGED:
 
-			$code      = (int) wp_remote_retrieve_response_code( $response );
-			$resp_body = (string) wp_remote_retrieve_body( $response );
-
-			$json = json_decode( $resp_body, true );
-			if ( json_last_error() !== JSON_ERROR_NONE ) {
-				// CHANGED: Only log non-json when it is a failure.
-				if ( $code < 200 || $code >= 300 ) { // CHANGED:
-					error_log( 'PPA: preview http ' . $code . ' (non-json)' ); // failure-only // CHANGED:
-				} // CHANGED:
-				wp_send_json_success( array( 'raw' => $resp_body ), $code );
-			}
+			$json = (array) $r['json']; // CHANGED:
 
 			// CHANGED: If license-key proxy auth was used and rejected, learn + block cleanly.
-			self::learn_or_block_license_proxy_auth( $code, is_array( $json ) ? $json : array() ); // CHANGED:
+			self::learn_or_block_license_proxy_auth( $code, $json ); // CHANGED:
 
+			// Guarantee result.html fallback (kept behavior)
 			if ( is_array( $json ) ) {
 				$res  = ( isset( $json['result'] ) && is_array( $json['result'] ) ) ? $json['result'] : array();
 				$html = (string) ( $res['html'] ?? '' );
@@ -1220,51 +1341,33 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 				}
 			}
 
-			if ( $code < 200 || $code >= 300 ) {
-				error_log( 'PPA: preview http ' . $code ); // failure-only
-			}
+			self::maybe_log_http_failure( 'preview', $code ); // CHANGED:
 			wp_send_json_success( $json, $code );
 		}
 
 		public static function ajax_store() {
-			self::$endpoint = 'store';
-
-			if ( ! current_user_can( 'edit_posts' ) ) {
-				wp_send_json_error( self::error_payload( 'forbidden', 403, array( 'reason' => 'capability_missing' ) ), 403 );
-			}
-
-			self::must_post();
-			self::verify_nonce_or_forbid();
-
-			self::enforce_license_gate_or_block(); // CHANGED:
+			self::preflight_or_die( 'store', true ); // CHANGED:
 
 			$payload = self::read_json_body();
+			$base    = self::django_base();
+			$url     = $base . '/store/'; // CHANGED:
 
-			$base = self::django_base();
+			$r = self::remote_call_parsed( 'POST', $url, self::build_args( $payload['raw'] ) ); // CHANGED:
+			if ( ! empty( $r['is_error'] ) ) { // CHANGED:
+				self::wp_error_or_die( 'store', $r['error'] ); // CHANGED:
+			} // CHANGED:
 
-			$django_url = $base . '/store/';
+			$code = (int) $r['code']; // CHANGED:
 
-			$response = wp_remote_post( $django_url, self::build_args( $payload['raw'] ) );
+			if ( empty( $r['is_json'] ) ) { // CHANGED:
+				self::maybe_log_non_json_failure( 'store', $code ); // CHANGED:
+				wp_send_json_success( array( 'raw' => (string) $r['body'] ), $code ); // CHANGED:
+			} // CHANGED:
 
-			if ( is_wp_error( $response ) ) {
-				error_log( 'PPA: store request_failed' ); // failure-only
-				wp_send_json_error( self::error_payload( 'request_failed', 500, array( 'detail' => $response->get_error_message() ) ), 500 );
-			}
-
-			$code      = (int) wp_remote_retrieve_response_code( $response );
-			$resp_body = (string) wp_remote_retrieve_body( $response );
-
-			$json = json_decode( $resp_body, true );
-			if ( json_last_error() !== JSON_ERROR_NONE ) {
-				// CHANGED: Only log non-json when it is a failure.
-				if ( $code < 200 || $code >= 300 ) { // CHANGED:
-					error_log( 'PPA: store http ' . $code . ' (non-json)' ); // failure-only // CHANGED:
-				} // CHANGED:
-				wp_send_json_success( array( 'raw' => $resp_body ), $code );
-			}
+			$json = (array) $r['json']; // CHANGED:
 
 			// CHANGED: If license-key proxy auth was used and rejected, learn + block cleanly.
-			self::learn_or_block_license_proxy_auth( $code, is_array( $json ) ? $json : array() ); // CHANGED:
+			self::learn_or_block_license_proxy_auth( $code, $json ); // CHANGED:
 
 			// ---------- Local WP create + link injection (kept; hardened) ----------------
 			try {
@@ -1274,7 +1377,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 				}
 				if ( ! $dj_ok ) {
 					self::log_proxy_event( 'store', $payload['json'], $json, $code );
-					// failure-only log is handled below on non-2xx
 					wp_send_json_success( $json, $code );
 				}
 
@@ -1293,7 +1395,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 				);
 				if ( $already_has_links ) {
 					self::log_proxy_event( 'store', $payload['json'], $json, $code );
-					// CHANGED: remove success-only debug.log line here (keep logs clean).
 					wp_send_json_success( $json, $code ); // CHANGED:
 				}
 
@@ -1387,98 +1488,64 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			}
 
 			self::log_proxy_event( 'store', $payload['json'], $json, $code );
-			if ( $code < 200 || $code >= 300 ) {
-				error_log( 'PPA: store http ' . $code ); // failure-only
-			}
+			self::maybe_log_http_failure( 'store', $code ); // CHANGED:
 			wp_send_json_success( $json, $code );
 		}
 
 		public static function ajax_generate() {
-			self::$endpoint = 'generate';
-
-			if ( ! current_user_can( 'edit_posts' ) ) {
-				wp_send_json_error( self::error_payload( 'forbidden', 403, array( 'reason' => 'capability_missing' ) ), 403 );
-			}
-
-			self::must_post();
-			self::verify_nonce_or_forbid();
-
-			self::enforce_license_gate_or_block(); // CHANGED:
+			self::preflight_or_die( 'generate', true ); // CHANGED:
 
 			$payload = self::read_json_body();
 			$base    = self::django_base();
+			$url     = $base . '/generate/'; // CHANGED:
 
-			$django_url = $base . '/generate/';
+			$r = self::remote_call_parsed( 'POST', $url, self::build_args( $payload['raw'] ) ); // CHANGED:
+			if ( ! empty( $r['is_error'] ) ) { // CHANGED:
+				self::wp_error_or_die( 'generate', $r['error'] ); // CHANGED:
+			} // CHANGED:
 
-			$response = wp_remote_post( $django_url, self::build_args( $payload['raw'] ) );
+			$code = (int) $r['code']; // CHANGED:
 
-			if ( is_wp_error( $response ) ) {
-				error_log( 'PPA: generate request_failed' ); // failure-only
-				wp_send_json_error( self::error_payload( 'request_failed', 500, array( 'detail' => $response->get_error_message() ) ), 500 );
-			}
+			if ( empty( $r['is_json'] ) ) { // CHANGED:
+				self::maybe_log_non_json_failure( 'generate', $code ); // CHANGED:
+				wp_send_json_success( array( 'raw' => (string) $r['body'] ), $code ); // CHANGED:
+			} // CHANGED:
 
-			$code      = (int) wp_remote_retrieve_response_code( $response );
-			$resp_body = (string) wp_remote_retrieve_body( $response );
-
-			$json = json_decode( $resp_body, true );
-			if ( json_last_error() !== JSON_ERROR_NONE ) {
-				// CHANGED: Only log non-json when it is a failure.
-				if ( $code < 200 || $code >= 300 ) { // CHANGED:
-					error_log( 'PPA: generate http ' . $code . ' (non-json)' ); // failure-only // CHANGED:
-				} // CHANGED:
-				wp_send_json_success( array( 'raw' => $resp_body ), $code );
-			}
+			$json = (array) $r['json']; // CHANGED:
 
 			// CHANGED: If license-key proxy auth was used and rejected, learn + block cleanly.
-			self::learn_or_block_license_proxy_auth( $code, is_array( $json ) ? $json : array() ); // CHANGED:
+			self::learn_or_block_license_proxy_auth( $code, $json ); // CHANGED:
 
 			self::log_proxy_event( 'generate', $payload['json'], $json, $code );
-			if ( $code < 200 || $code >= 300 ) {
-				error_log( 'PPA: generate http ' . $code ); // failure-only
-			}
+			self::maybe_log_http_failure( 'generate', $code ); // CHANGED:
 			wp_send_json_success( $json, $code );
 		}
 
 		public static function ajax_debug_headers() {
-			self::$endpoint = 'debug_headers';
-
-			if ( ! current_user_can( 'edit_posts' ) ) {
-				wp_send_json_error( self::error_payload( 'forbidden', 403, array( 'reason' => 'capability_missing' ) ), 403 );
-			}
-
-			self::must_post();
-			self::verify_nonce_or_forbid();
+			self::preflight_or_die( 'debug_headers', false ); // CHANGED: debug does NOT license-gate
 
 			$payload = self::read_json_body();
 			$base    = self::django_base();
-
-			$django_url = $base . '/debug/headers/';
+			$url     = $base . '/debug/headers/'; // CHANGED:
 
 			$args = self::build_args( $payload['raw'] );
 			unset( $args['body'] );
 
-			$response = wp_remote_get( $django_url, $args );
+			$r = self::remote_call_parsed( 'GET', $url, $args ); // CHANGED:
+			if ( ! empty( $r['is_error'] ) ) { // CHANGED:
+				self::wp_error_or_die( 'debug_headers', $r['error'] ); // CHANGED:
+			} // CHANGED:
 
-			if ( is_wp_error( $response ) ) {
-				error_log( 'PPA: debug_headers request_failed' ); // failure-only
-				wp_send_json_error( self::error_payload( 'request_failed', 500, array( 'detail' => $response->get_error_message() ) ), 500 );
-			}
+			$code = (int) $r['code']; // CHANGED:
 
-			$code      = (int) wp_remote_retrieve_response_code( $response );
-			$resp_body = (string) wp_remote_retrieve_body( $response );
+			if ( empty( $r['is_json'] ) ) { // CHANGED:
+				self::maybe_log_non_json_failure( 'debug_headers', $code ); // CHANGED:
+				wp_send_json_success( array( 'raw' => (string) $r['body'] ), $code ); // CHANGED:
+			} // CHANGED:
 
-			$json = json_decode( $resp_body, true );
-			if ( json_last_error() !== JSON_ERROR_NONE ) {
-				// CHANGED: Only log non-json when it is a failure.
-				if ( $code < 200 || $code >= 300 ) { // CHANGED:
-					error_log( 'PPA: debug_headers http ' . $code . ' (non-json)' ); // failure-only // CHANGED:
-				} // CHANGED:
-				wp_send_json_success( array( 'raw' => $resp_body ), $code );
-			}
+			$json = (array) $r['json']; // CHANGED:
 
-			if ( $code < 200 || $code >= 300 ) {
-				error_log( 'PPA: debug_headers http ' . $code ); // failure-only
-			}
+			self::maybe_log_http_failure( 'debug_headers', $code ); // CHANGED:
 			wp_send_json_success( $json, $code );
 		}
 	}
