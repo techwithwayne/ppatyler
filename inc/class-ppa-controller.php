@@ -7,6 +7,10 @@
  * /wp-content/plugins/postpress-ai/inc/class-ppa-controller.php
  *
  * CHANGE LOG
+ * 2026-01-04 • HARDEN: Prevent "activation drop" after cache purge/idle by trusting opt-bound ACTIVE and kicking rate-limited verify. // CHANGED:
+ * 2026-01-04 • HARDEN: Never downgrade an already-active, site-bound license to "unknown" due to transient/verify blips.              // CHANGED:
+ * 2026-01-04 • FIX: Persist ppa_license_active_site as full home_url('/') (scheme included); comparisons remain normalized.            // CHANGED:
+ *
  * 2026-01-03 • REFACTOR: Modularize endpoint flow (preflight + remote call + parse helpers). No contract changes. // CHANGED:
  *
  * 2026-01-03 • FIX: Gate truth normalization (accept array OR string transient shapes).                        // CHANGED:
@@ -93,16 +97,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 		 * Internals (errors + logging)
 		 * ──────────────────────────────────────────────────────────────────── */
 
-		/**
-		 * Build a Django-like error payload for WP-side failures.
-		 *
-		 * NOTE: This lives inside the "data" wrapper when using wp_send_json_error.
-		 *
-		 * @param string $error_code
-		 * @param int    $http_status
-		 * @param array  $meta_extra
-		 * @return array
-		 */
 		private static function error_payload( $error_code, $http_status, $meta_extra = array() ) { // CHANGED:
 			$http_status = (int) $http_status;
 			$meta_base   = array(
@@ -120,14 +114,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			);
 		}
 
-		/**
-		 * Failure-only throttled logger (prevents repeated spam lines).           // CHANGED:
-		 *
-		 * @param string $key
-		 * @param int    $ttl_seconds
-		 * @param string $msg
-		 * @return void
-		 */
 		private static function log_throttled( $key, $ttl_seconds, $msg ) { // CHANGED:
 			$tkey = 'ppa_log_throttle_' . sanitize_key( (string) $key ); // CHANGED:
 			if ( get_transient( $tkey ) ) { // CHANGED:
@@ -137,13 +123,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			error_log( (string) $msg ); // CHANGED:
 		} // CHANGED:
 
-		/**
-		 * Helper: only log non-json when request failed (non-2xx).                 // CHANGED:
-		 *
-		 * @param string $label
-		 * @param int    $code
-		 * @return void
-		 */
 		private static function maybe_log_non_json_failure( $label, $code ) { // CHANGED:
 			$code  = (int) $code; // CHANGED:
 			$label = sanitize_key( (string) $label ); // CHANGED:
@@ -152,13 +131,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			} // CHANGED:
 		} // CHANGED:
 
-		/**
-		 * Helper: only log http line when request failed (non-2xx).                // CHANGED:
-		 *
-		 * @param string $label
-		 * @param int    $code
-		 * @return void
-		 */
 		private static function maybe_log_http_failure( $label, $code ) { // CHANGED:
 			$code  = (int) $code; // CHANGED:
 			$label = sanitize_key( (string) $label ); // CHANGED:
@@ -171,9 +143,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 		 * Internals (request preflight)
 		 * ──────────────────────────────────────────────────────────────────── */
 
-		/**
-		 * Enforce POST method; send 405 if not.
-		 */
 		private static function must_post() { // CHANGED:
 			$method = isset( $_SERVER['REQUEST_METHOD'] ) ? strtoupper( (string) $_SERVER['REQUEST_METHOD'] ) : '';
 			if ( 'POST' !== $method ) {
@@ -188,9 +157,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			}
 		}
 
-		/**
-		 * Verify nonce from headers (X-PPA-Nonce or X-WP-Nonce); 403 if invalid/missing.
-		 */
 		private static function verify_nonce_or_forbid() { // CHANGED:
 			$headers = function_exists( 'getallheaders' ) ? (array) getallheaders() : array();
 			$nonce   = '';
@@ -215,13 +181,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			}
 		}
 
-		/**
-		 * Preflight for any endpoint: capability, POST-only, nonce, optional license gate. // CHANGED:
-		 *
-		 * @param string $endpoint
-		 * @param bool   $enforce_gate
-		 * @return void
-		 */
 		private static function preflight_or_die( $endpoint, $enforce_gate ) { // CHANGED:
 			self::$endpoint = sanitize_key( (string) $endpoint ); // CHANGED:
 			if ( self::$endpoint === '' ) { self::$endpoint = 'preview'; } // CHANGED:
@@ -242,11 +201,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 		 * Internals (IO + remote calls)
 		 * ──────────────────────────────────────────────────────────────────── */
 
-		/**
-		 * Read incoming request body as JSON (robust).
-		 *
-		 * @return array{raw:string,json:array,source:string,content_type:string}
-		 */
 		private static function read_json_body() { // CHANGED:
 			$content_type = isset( $_SERVER['CONTENT_TYPE'] ) ? (string) $_SERVER['CONTENT_TYPE'] : ''; // CHANGED:
 			$source       = 'php_input'; // CHANGED:
@@ -255,7 +209,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			$raw    = is_string( $raw_in ) ? (string) $raw_in : '';
 			$raw    = (string) $raw;
 
-			// 1) Try raw input as JSON first.
 			$assoc = json_decode( $raw, true );
 			if ( JSON_ERROR_NONE === json_last_error() && is_array( $assoc ) ) {
 				return array(
@@ -266,7 +219,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 				);
 			}
 
-			// 2) Fallback: some clients send a single JSON blob field (payload/data/json/body).
 			$candidates = array( 'payload', 'data', 'json', 'body' ); // CHANGED:
 			foreach ( $candidates as $k ) { // CHANGED:
 				if ( isset( $_POST[ $k ] ) && is_string( $_POST[ $k ] ) ) { // CHANGED:
@@ -286,14 +238,12 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 				} // CHANGED:
 			}
 
-			// 3) Fallback: build an object from $_POST fields (common with FormData/multipart).
 			if ( ! empty( $_POST ) && is_array( $_POST ) ) { // CHANGED:
 				$assoc3 = wp_unslash( $_POST ); // CHANGED:
 				if ( ! is_array( $assoc3 ) ) { // CHANGED:
 					$assoc3 = array(); // CHANGED:
 				} // CHANGED:
 
-				// Strip WP/AJAX noise keys so Django only sees the real payload. // CHANGED:
 				foreach ( array( 'action', '_ajax_nonce', '_wpnonce', '_wp_http_referer', 'security', 'nonce' ) as $noise ) { // CHANGED:
 					if ( isset( $assoc3[ $noise ] ) ) { // CHANGED:
 						unset( $assoc3[ $noise ] ); // CHANGED:
@@ -314,7 +264,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 				); // CHANGED:
 			}
 
-			// 4) Total fallback: empty object (never forward empty string).
 			return array(
 				'raw'          => '{}', // CHANGED:
 				'json'          => array(),
@@ -323,13 +272,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			);
 		}
 
-		/**
-		 * Helper: die with request_failed payload when wp_remote_* returns WP_Error. // CHANGED:
-		 *
-		 * @param string   $label
-		 * @param \WP_Error $err
-		 * @return void
-		 */
 		private static function wp_error_or_die( $label, $err ) { // CHANGED:
 			$label = sanitize_key( (string) $label ); // CHANGED:
 			error_log( 'PPA: ' . $label . ' request_failed' ); // CHANGED: failure-only
@@ -343,14 +285,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			); // CHANGED:
 		} // CHANGED:
 
-		/**
-		 * Helper: perform a remote call and parse JSON (but do NOT send).          // CHANGED:
-		 *
-		 * @param string $method 'POST'|'GET'
-		 * @param string $url
-		 * @param array  $args
-		 * @return array{is_error:bool,code:int,body:string,is_json:bool,json:array}
-		 */
 		private static function remote_call_parsed( $method, $url, $args ) { // CHANGED:
 			$method = strtoupper( (string) $method ); // CHANGED:
 			$url    = (string) $url; // CHANGED:
@@ -395,12 +329,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 		 * Internals (Django URL + auth + license gate)
 		 * ──────────────────────────────────────────────────────────────────── */
 
-		/**
-		 * CHANGED: Normalize a Django base URL into a safe, https-schemed, no-trailing-slash URL.
-		 *
-		 * @param string $base
-		 * @return string
-		 */
 		private static function normalize_django_base( $base ) { // CHANGED:
 			$base = trim( (string) $base );
 			if ( '' === $base ) { return ''; }
@@ -415,11 +343,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			return is_string( $base ) ? $base : '';
 		}
 
-		/**
-		 * Resolve Django base URL with constant/option + filter; sanitized, no trailing slash.
-		 *
-		 * @return string
-		 */
 		private static function django_base() { // CHANGED:
 			$base_raw = '';
 			if ( defined( 'PPA_DJANGO_URL' ) && PPA_DJANGO_URL ) {
@@ -444,20 +367,13 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			return $base2;
 		}
 
-		/**
-		 * Resolve license key from option(s) (customer primary).
-		 *
-		 * @return string
-		 */
 		private static function license_key() { // CHANGED:
-			// Primary known key.
 			$k = get_option( 'ppa_license_key', '' );
 			if ( is_string( $k ) ) {
 				$k = trim( $k );
 				if ( '' !== $k ) { return $k; }
 			}
 
-			// Compatibility fallbacks (older naming).
 			foreach ( array( 'ppa_activation_key', 'ppa_key', 'postpress_ai_license_key' ) as $opt_name ) { // CHANGED:
 				$v = get_option( $opt_name, '' ); // CHANGED:
 				if ( is_string( $v ) ) { // CHANGED:
@@ -466,7 +382,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 				} // CHANGED:
 			}
 
-			// Legacy array option read-only fallback (do not re-add it; just read if present).
 			$settings = get_option( 'ppa_settings', null ); // CHANGED:
 			if ( is_array( $settings ) ) { // CHANGED:
 				foreach ( array( 'license_key', 'ppa_license_key', 'ppa_activation_key' ) as $sk ) { // CHANGED:
@@ -480,11 +395,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			return '';
 		}
 
-		/**
-		 * Resolve shared key from constant, option, or external filter. Never echo/log this.
-		 *
-		 * @return string
-		 */
 		private static function shared_key() { // CHANGED:
 			if ( defined( 'PPA_SHARED_KEY' ) && PPA_SHARED_KEY ) {
 				return trim( (string) PPA_SHARED_KEY );
@@ -505,11 +415,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			return '';
 		}
 
-		/**
-		 * Sticky proxy capability: does Django accept LICENSE KEY as X-PPA-Key on /preview/ /generate/ /store/? // CHANGED:
-		 *
-		 * @return string ''|'1'|'0'
-		 */
 		private static function proxy_license_header_ok() { // CHANGED:
 			$v = get_option( 'ppa_proxy_license_header_ok', '' ); // CHANGED:
 			if ( is_string( $v ) ) { // CHANGED:
@@ -519,12 +424,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			return ''; // CHANGED:
 		} // CHANGED:
 
-		/**
-		 * Update sticky proxy capability flag (no autoload bloat).                 // CHANGED:
-		 *
-		 * @param string $v '1' or '0'
-		 * @return void
-		 */
 		private static function set_proxy_license_header_ok( $v ) { // CHANGED:
 			$v = ( $v === '1' ) ? '1' : '0'; // CHANGED:
 			if ( get_option( 'ppa_proxy_license_header_ok', null ) === null ) { // CHANGED:
@@ -534,11 +433,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			} // CHANGED:
 		} // CHANGED:
 
-		/**
-		 * Decide whether the PROXY endpoints should prefer license key header even if shared exists.
-		 *
-		 * @return bool
-		 */
 		private static function proxy_accepts_license_key_header() { // CHANGED:
 			$flag = false; // CHANGED:
 			if ( defined( 'PPA_PROXY_ACCEPTS_LICENSE_KEY_HEADER' ) ) { // CHANGED:
@@ -548,13 +442,8 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			return (bool) $flag; // CHANGED:
 		}
 
-		/**
-		 * Decide whether a VERIFY probe using license key as X-PPA-Key is allowed.
-		 *
-		 * @return bool
-		 */
 		private static function verify_probe_license_key_header_allowed() { // CHANGED:
-			$flag = true; // CHANGED: probing is allowed by default (rate-limited)
+			$flag = true; // CHANGED:
 			if ( defined( 'PPA_VERIFY_PROBE_LICENSE_KEY_HEADER' ) ) { // CHANGED:
 				$flag = (bool) PPA_VERIFY_PROBE_LICENSE_KEY_HEADER; // CHANGED:
 			} // CHANGED:
@@ -562,39 +451,25 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			return (bool) $flag; // CHANGED:
 		}
 
-		/**
-		 * Resolve the auth token for outbound PROXY calls (preview/store/generate/debug).
-		 *
-		 * RULES:
-		 * - Prefer shared key when present (known-good).
-		 * - If shared missing: try license key ONLY if we haven't learned it's rejected.   // CHANGED:
-		 * - If learned rejected (ppa_proxy_license_header_ok=0): block cleanly.            // CHANGED:
-		 *
-		 * @return string
-		 */
 		private static function proxy_auth_key_or_500() { // CHANGED:
 			$license = self::license_key(); // CHANGED:
 			$shared  = self::shared_key();  // CHANGED:
 
-			// Explicit preference: allow forcing license-key header even if shared exists.
 			if ( self::proxy_accepts_license_key_header() && '' !== $license ) { // CHANGED:
 				self::$proxy_auth_mode = 'license'; // CHANGED:
 				return $license; // CHANGED:
 			} // CHANGED:
 
-			// Default: use shared key when present.
 			if ( '' !== $shared ) { // CHANGED:
 				self::$proxy_auth_mode = 'shared'; // CHANGED:
 				return $shared; // CHANGED:
 			} // CHANGED:
 
-			// Shared missing: customer domains. Use license key unless we learned it fails.
 			if ( '' !== $license ) { // CHANGED:
 				self::$proxy_auth_mode = 'license'; // CHANGED:
 
 				$known = self::proxy_license_header_ok(); // CHANGED:
 				if ( $known === '0' ) { // CHANGED:
-					// Fail cleanly and do not hammer Django repeatedly.
 					wp_send_json_error( // CHANGED:
 						self::error_payload( // CHANGED:
 							'proxy_auth_unsupported', // CHANGED:
@@ -612,7 +487,7 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 				return $license; // CHANGED:
 			} // CHANGED:
 
-			error_log( 'PPA: server_misconfig (missing proxy auth key)' ); // CHANGED: failure-only, no secrets
+			error_log( 'PPA: server_misconfig (missing proxy auth key)' ); // CHANGED:
 			wp_send_json_error( // CHANGED:
 				self::error_payload( // CHANGED:
 					'server_misconfig', // CHANGED:
@@ -624,13 +499,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			return ''; // unreachable // CHANGED:
 		}
 
-		/**
-		 * If we used license-key proxy auth and Django rejects it, learn + fail cleanly. // CHANGED:
-		 *
-		 * @param int   $http_code
-		 * @param array $json
-		 * @return void
-		 */
 		private static function learn_or_block_license_proxy_auth( $http_code, $json ) { // CHANGED:
 			if ( self::$proxy_auth_mode !== 'license' ) { // CHANGED:
 				return; // CHANGED:
@@ -648,8 +516,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 
 				$backend_msg = ''; // CHANGED:
 				if ( is_array( $json ) ) { // CHANGED:
-					// Common backend error shapes:
-					// {"ok":false,"error":{"type":"forbidden","message":"invalid authentication key"}} // CHANGED:
 					if ( isset( $json['error']['message'] ) && is_string( $json['error']['message'] ) ) { // CHANGED:
 						$backend_msg = (string) $json['error']['message']; // CHANGED:
 					} elseif ( isset( $json['message'] ) && is_string( $json['message'] ) ) { // CHANGED:
@@ -672,12 +538,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			} // CHANGED:
 		} // CHANGED:
 
-		/**
-		 * Normalize site_url strings for safe comparison.
-		 *
-		 * @param string $u
-		 * @return string
-		 */
 		private static function normalize_site_url( $u ) { // CHANGED:
 			$u = trim( (string) $u ); // CHANGED:
 			if ( '' === $u ) { return ''; } // CHANGED:
@@ -707,21 +567,10 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			return $hp . $path; // CHANGED:
 		}
 
-		/**
-		 * Current site URL (normalized).
-		 *
-		 * @return string
-		 */
 		private static function current_site_url_norm() { // CHANGED:
 			return self::normalize_site_url( home_url( '/' ) ); // CHANGED:
 		}
 
-		/**
-		 * Extract "freshness" timestamp from a license verify payload if present.
-		 *
-		 * @param array $res
-		 * @return int
-		 */
 		private static function extract_server_verified_epoch( $res ) { // CHANGED:
 			if ( ! is_array( $res ) ) { return 0; } // CHANGED:
 
@@ -738,24 +587,12 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			return 0; // CHANGED:
 		}
 
-		/**
-		 * Canonical gate max-age seconds (single source of truth).                // CHANGED:
-		 *
-		 * @return int
-		 */
 		private static function license_gate_max_age_seconds() { // CHANGED:
 			$max_age = (int) apply_filters( 'ppa_license_gate_max_age_seconds', 900, self::$endpoint ); // CHANGED:
 			if ( $max_age < 30 ) { $max_age = 30; } // CHANGED:
 			return $max_age; // CHANGED:
 		} // CHANGED:
 
-		/**
-		 * Determine if a cached license result is "fresh enough" to trust for gating.
-		 *
-		 * @param array $res
-		 * @param int|null $max_age Optional override (already-sanitized).         // CHANGED:
-		 * @return bool
-		 */
 		private static function license_cache_is_fresh( $res, $max_age = null ) { // CHANGED:
 			$max_age = ( $max_age === null ) ? self::license_gate_max_age_seconds() : (int) $max_age; // CHANGED:
 			if ( $max_age < 30 ) { $max_age = 30; } // CHANGED:
@@ -769,12 +606,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			return ( ( $now - $checked_at ) <= $max_age ); // CHANGED:
 		}
 
-		/**
-		 * Interpret a license verify payload into a truth state for THIS site.
-		 *
-		 * @param mixed $res
-		 * @return array{state:string,reason:string,source:string}
-		 */
 		private static function interpret_license_truth( $res ) { // CHANGED:
 			if ( ! is_array( $res ) ) { // CHANGED:
 				return array( 'state' => 'unknown', 'reason' => 'result_not_array', 'source' => 'none' ); // CHANGED:
@@ -824,37 +655,48 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			return array( 'state' => 'unknown', 'reason' => 'insufficient_data', 'source' => 'cache' ); // CHANGED:
 		}
 
-		/**
-		 * Persist minimal license options (no secrets stored).
-		 *
-		 * @param array $truth
-		 * @return void
-		 */
 		private static function persist_license_truth( $truth ) { // CHANGED:
 			if ( ! is_array( $truth ) || ! isset( $truth['state'] ) ) { return; } // CHANGED:
 
 			$state = (string) $truth['state']; // CHANGED:
+
 			if ( 'active' === $state ) { // CHANGED:
 				update_option( 'ppa_license_state', 'active', false ); // CHANGED:
-				update_option( 'ppa_license_active_site', self::current_site_url_norm(), false ); // CHANGED:
+				update_option( 'ppa_license_active_site', home_url( '/' ), false ); // CHANGED:
 				update_option( 'ppa_license_last_error_code', '', false ); // CHANGED:
+				update_option( 'ppa_license_last_checked_at', time(), false ); // CHANGED:
+				return; // CHANGED:
 			} elseif ( 'inactive' === $state ) { // CHANGED:
 				update_option( 'ppa_license_state', 'inactive', false ); // CHANGED:
 				update_option( 'ppa_license_active_site', '', false ); // CHANGED:
 				update_option( 'ppa_license_last_error_code', 'inactive', false ); // CHANGED:
-			} else { // unknown // CHANGED:
-				update_option( 'ppa_license_state', 'unknown', false ); // CHANGED:
-				update_option( 'ppa_license_active_site', '', false ); // CHANGED:
+				update_option( 'ppa_license_last_checked_at', time(), false ); // CHANGED:
+				return; // CHANGED:
+			}
+
+			// CHANGED: Unknown should NEVER wipe a currently-active, site-bound license. This prevents
+			// "plugin looks deactivated" after cache purges / brief verify blips.
+			$prev_state_raw = get_option( 'ppa_license_state', '' ); // CHANGED:
+			$prev_state     = is_string( $prev_state_raw ) ? strtolower( trim( $prev_state_raw ) ) : ''; // CHANGED:
+
+			$prev_site_raw  = get_option( 'ppa_license_active_site', '' ); // CHANGED:
+			$prev_site      = is_string( $prev_site_raw ) ? (string) $prev_site_raw : ''; // CHANGED:
+			$prev_site_norm = self::normalize_site_url( $prev_site ); // CHANGED:
+
+			$site_here = self::current_site_url_norm(); // CHANGED:
+
+			if ( 'active' === $prev_state && $prev_site_norm !== '' && $prev_site_norm === $site_here ) { // CHANGED:
+				update_option( 'ppa_license_last_error_code', 'unknown', false ); // CHANGED:
+				update_option( 'ppa_license_last_checked_at', time(), false ); // CHANGED:
+				return; // CHANGED:
 			} // CHANGED:
 
+			update_option( 'ppa_license_state', 'unknown', false ); // CHANGED:
+			update_option( 'ppa_license_active_site', '', false ); // CHANGED:
+			update_option( 'ppa_license_last_error_code', 'unknown', false ); // CHANGED:
 			update_option( 'ppa_license_last_checked_at', time(), false ); // CHANGED:
 		}
 
-		/**
-		 * Perform a server-side /license/verify/ (rate-limited) to refresh truth for this site.
-		 *
-		 * @return array{state:string,reason:string,source:string}
-		 */
 		private static function server_verify_license_truth() { // CHANGED:
 			$license = self::license_key(); // CHANGED:
 			if ( '' === $license ) { // CHANGED:
@@ -942,19 +784,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			return array( 'state' => 'unknown', 'reason' => 'verify_failed', 'source' => 'server' ); // CHANGED:
 		}
 
-		/**
-		 * CHANGED: Use persisted license options as a fallback truth source for gating.
-		 * This prevents false "unknown" when transients are missing or object cache is quirky.
-		 *
-		 * Requires:
-		 * - ppa_license_state === 'active' or 'inactive'
-		 * - ppa_license_active_site matches this site (normalized)
-		 * - ppa_license_last_checked_at is fresh (within gate max age)
-		 *
-		 * @param int    $max_age    Canonical max-age seconds (already sanitized). // CHANGED:
-		 * @param string $site_here  Normalized current site string.               // CHANGED:
-		 * @return array|false array{state:string,reason:string,source:string} or false if not usable
-		 */
 		private static function license_options_truth_if_fresh( $max_age, $site_here ) { // CHANGED:
 			$max_age   = (int) $max_age; // CHANGED:
 			$site_here = is_string( $site_here ) ? trim( $site_here ) : ''; // CHANGED:
@@ -972,7 +801,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			$site_opt_raw = get_option( 'ppa_license_active_site', '' ); // CHANGED:
 			$site_opt     = is_string( $site_opt_raw ) ? trim( $site_opt_raw ) : ''; // CHANGED:
 			if ( '' === $site_opt ) { // CHANGED:
-				// Safety: do not trust "active" without a site binding. // CHANGED:
 				return false; // CHANGED:
 			} // CHANGED:
 
@@ -998,10 +826,82 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 		} // CHANGED:
 
 		/**
-		 * Rate-limited truth resolver used by the proxy gate.
+		 * CHANGED: Stable fallback when cache is pur graphical + idle makes opt:fresh fail.
+		 * If options say ACTIVE/INACTIVE and the site binding matches, return it even if stale.
 		 *
-		 * @return array{state:string,reason:string,source:string}
+		 * @param string $site_here normalized current site
+		 * @return array|false
 		 */
+		private static function license_options_truth_if_bound( $site_here ) { // CHANGED:
+			$site_here = is_string( $site_here ) ? trim( $site_here ) : ''; // CHANGED:
+			if ( '' === $site_here ) { return false; } // CHANGED:
+
+			$state_raw = get_option( 'ppa_license_state', '' ); // CHANGED:
+			$state     = is_string( $state_raw ) ? strtolower( trim( $state_raw ) ) : ''; // CHANGED:
+			if ( $state !== 'active' && $state !== 'inactive' ) { // CHANGED:
+				return false; // CHANGED:
+			} // CHANGED:
+
+			$site_opt_raw = get_option( 'ppa_license_active_site', '' ); // CHANGED:
+			$site_opt     = is_string( $site_opt_raw ) ? trim( $site_opt_raw ) : ''; // CHANGED:
+			if ( '' === $site_opt ) { // CHANGED:
+				return false; // CHANGED:
+			} // CHANGED:
+
+			$site_norm = self::normalize_site_url( $site_opt ); // CHANGED:
+			if ( '' === $site_norm || $site_norm !== $site_here ) { // CHANGED:
+				return false; // CHANGED:
+			} // CHANGED:
+
+			$checked_at = (int) get_option( 'ppa_license_last_checked_at', 0 ); // CHANGED:
+			if ( $checked_at <= 0 ) { // CHANGED:
+				return false; // CHANGED:
+			} // CHANGED:
+
+			$age = time() - $checked_at; // CHANGED:
+
+			return array( // CHANGED:
+				'state'       => $state, // CHANGED:
+				'reason'      => ( $state === 'active' ? 'option_active_stale' : 'option_inactive_stale' ), // CHANGED:
+				'source'      => 'opt:bound', // CHANGED:
+				'age_seconds' => (int) $age, // CHANGED:
+			); // CHANGED:
+		} // CHANGED:
+
+		/**
+		 * CHANGED: Best-effort, rate-limited verify kick. Never blocks the current request.
+		 *
+		 * @param int $min_interval seconds
+		 * @param int $ttl_gate seconds
+		 * @return void
+		 */
+		private static function maybe_kick_gate_verify_best_effort( $min_interval, $ttl_gate ) { // CHANGED:
+			$min_interval = (int) $min_interval; // CHANGED:
+			if ( $min_interval < 15 ) { $min_interval = 15; } // CHANGED:
+
+			$ttl_gate = (int) $ttl_gate; // CHANGED:
+			if ( $ttl_gate < 15 ) { $ttl_gate = 15; } // CHANGED:
+
+			$last_try = (int) get_transient( 'ppa_license_gate_last_verify_at' ); // CHANGED:
+			if ( $last_try > 0 && ( time() - $last_try ) < $min_interval ) { // CHANGED:
+				return; // CHANGED:
+			} // CHANGED:
+
+			set_transient( 'ppa_license_gate_last_verify_at', time(), $min_interval ); // CHANGED:
+
+			$truth = self::server_verify_license_truth(); // CHANGED:
+			set_transient( 'ppa_license_gate_last_verify_state', $truth, 5 * MINUTE_IN_SECONDS ); // CHANGED:
+
+			// Only overwrite gate_state if server returns a definitive active/inactive. // CHANGED:
+			if ( is_array( $truth ) && isset( $truth['state'] ) ) { // CHANGED:
+				$s = strtolower( trim( (string) $truth['state'] ) ); // CHANGED:
+				if ( $s === 'active' || $s === 'inactive' ) { // CHANGED:
+					$truth['state'] = $s; // CHANGED:
+					set_transient( 'ppa_license_gate_state', $truth, $ttl_gate ); // CHANGED:
+				} // CHANGED:
+			} // CHANGED:
+		} // CHANGED:
+
 		private static function get_license_truth_for_gate() { // CHANGED:
 			$max_age  = self::license_gate_max_age_seconds(); // CHANGED:
 			$ttl_gate = min( 60, $max_age ); // CHANGED:
@@ -1011,8 +911,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 
 			$cached = get_transient( 'ppa_license_gate_state' ); // CHANGED:
 
-			// CHANGED: Only trust cached gate state when it is explicitly active/inactive.
-			// If cached is "unknown" (array or string), DO NOT early-return; allow opt:fresh to unblock.
 			if ( is_array( $cached ) && isset( $cached['state'] ) ) { // CHANGED:
 				$s = strtolower( trim( (string) $cached['state'] ) ); // CHANGED:
 				if ( $s === 'active' || $s === 'inactive' ) { // CHANGED:
@@ -1044,6 +942,17 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			$min_interval = (int) apply_filters( 'ppa_license_gate_verify_min_interval', 60, self::$endpoint ); // CHANGED:
 			if ( $min_interval < 15 ) { $min_interval = 15; } // CHANGED:
 
+			// CHANGED: Stable "opt:bound" fallback prevents false unknown after cache purge/idle.
+			// We also kick a best-effort verify to refresh truth without forcing the Settings screen.
+			$opt_bound = self::license_options_truth_if_bound( $site_here ); // CHANGED:
+			if ( is_array( $opt_bound ) && isset( $opt_bound['state'] ) ) { // CHANGED:
+				set_transient( 'ppa_license_gate_state', $opt_bound, $ttl_gate ); // CHANGED:
+				if ( (string) $opt_bound['state'] === 'active' ) { // CHANGED:
+					self::maybe_kick_gate_verify_best_effort( $min_interval, $ttl_gate ); // CHANGED:
+				} // CHANGED:
+				return $opt_bound; // CHANGED:
+			} // CHANGED:
+
 			$last_try = (int) get_transient( 'ppa_license_gate_last_verify_at' ); // CHANGED:
 			if ( $last_try > 0 && ( time() - $last_try ) < $min_interval ) { // CHANGED:
 				$recent = get_transient( 'ppa_license_gate_last_verify_state' ); // CHANGED:
@@ -1061,11 +970,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			return $truth; // CHANGED:
 		}
 
-		/**
-		 * Enforce: block proxy calls unless license is ACTIVE for this site.
-		 *
-		 * @return void
-		 */
 		private static function enforce_license_gate_or_block() { // CHANGED:
 			$truth = self::get_license_truth_for_gate(); // CHANGED:
 			if ( is_array( $truth ) && (string) ( $truth['state'] ?? '' ) === 'active' ) { // CHANGED:
@@ -1075,7 +979,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			$state = (string) ( $truth['state'] ?? 'unknown' ); // CHANGED:
 			$code  = ( 'inactive' === $state ) ? 'license_inactive' : 'license_unknown'; // CHANGED:
 
-			// CHANGED: throttle gate-block logging to keep logs clean.
 			self::log_throttled( // CHANGED:
 				'gate_block_' . self::$endpoint . '_' . $state, // CHANGED:
 				60, // CHANGED:
@@ -1099,12 +1002,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 			); // CHANGED:
 		}
 
-		/**
-		 * Build wp_remote_post() args; headers are filterable.
-		 *
-		 * @param string $raw_json
-		 * @return array
-		 */
 		private static function build_args( $raw_json ) {
 			$headers = array(
 				'Content-Type'     => 'application/json; charset=utf-8',
@@ -1323,10 +1220,8 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 
 			$json = (array) $r['json']; // CHANGED:
 
-			// CHANGED: If license-key proxy auth was used and rejected, learn + block cleanly.
 			self::learn_or_block_license_proxy_auth( $code, $json ); // CHANGED:
 
-			// Guarantee result.html fallback (kept behavior)
 			if ( is_array( $json ) ) {
 				$res  = ( isset( $json['result'] ) && is_array( $json['result'] ) ) ? $json['result'] : array();
 				$html = (string) ( $res['html'] ?? '' );
@@ -1366,10 +1261,8 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 
 			$json = (array) $r['json']; // CHANGED:
 
-			// CHANGED: If license-key proxy auth was used and rejected, learn + block cleanly.
 			self::learn_or_block_license_proxy_auth( $code, $json ); // CHANGED:
 
-			// ---------- Local WP create + link injection (kept; hardened) ----------------
 			try {
 				$dj_ok = ( $code >= 200 && $code < 300 );
 				if ( $dj_ok && is_array( $json ) && array_key_exists( 'ok', $json ) ) {
@@ -1513,7 +1406,6 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 
 			$json = (array) $r['json']; // CHANGED:
 
-			// CHANGED: If license-key proxy auth was used and rejected, learn + block cleanly.
 			self::learn_or_block_license_proxy_auth( $code, $json ); // CHANGED:
 
 			self::log_proxy_event( 'generate', $payload['json'], $json, $code );
@@ -1522,7 +1414,7 @@ if ( ! class_exists( 'PPA_Controller' ) ) {
 		}
 
 		public static function ajax_debug_headers() {
-			self::preflight_or_die( 'debug_headers', false ); // CHANGED: debug does NOT license-gate
+			self::preflight_or_die( 'debug_headers', false ); // CHANGED:
 
 			$payload = self::read_json_body();
 			$base    = self::django_base();
